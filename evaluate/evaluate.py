@@ -30,7 +30,7 @@ class MscEvalV0(object):
         self.ignore_label = ignore_label
 
     def __call__(self, net, dl, n_classes):
-        hist = torch.zeros(n_classes, n_classes)
+        hist = torch.zeros(n_classes, n_classes).cuda().detach()
         if dist.is_initialized() and dist.get_rank() != 0:
             diter = enumerate(dl)
         else:
@@ -230,7 +230,7 @@ def main():
 
     if not osp.exists(cfg.respth): os.makedirs(cfg.respth)
     setup_logger('{}-eval'.format(cfg.model_type), cfg.respth)
-    evaluate(cfg, args.weight_pth)
+    evaluate(cfg, args.weight_path)
 
 if __name__ == "__main__":
     main()

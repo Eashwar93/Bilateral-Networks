@@ -9,11 +9,10 @@ cfg = dict(
     im_root='./datasets/cityscapes',
     train_im_anns='./datasets/cityscapes/train.txt',
     val_im_anns='./datasets/cityscapes/val.txt',
-    scales=[0.75,2. ],
-    cropsize=[1024, 1024],
+    scales=[0.75,1. ],
+    cropsize=[640, 480],
     ims_per_gpu=3,
     use_fp16=True,
     use_sync_bn=False,
     respth='./res',
-
     )
