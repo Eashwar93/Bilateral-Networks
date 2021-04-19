@@ -37,8 +37,8 @@ class BaseDataset(Dataset):
     def __getitem__(self, idx):
         impth, lbpth = self.img_paths[idx], self.lb_paths[idx]
         img, label = cv2.imread(impth)[:,:,::-1], cv2.imread(lbpth, 0)
-        if not self.lb_map is None:   # Do we need this line?
-            label = self.lb_map[label]  # Do we need this line?
+        if not self.lb_map is None:
+            label = self.lb_map[label]
         im_lb = dict(im=img, lb=label)
         if not self.trans_func is None:
             im_lb = self.trans_func(im_lb)

@@ -12,6 +12,7 @@ class OhemCELoss(nn.Module):
         self.ignore_lb = ignore_lb
         self.criteria = nn.CrossEntropyLoss(ignore_index=ignore_lb, reduction='none')
 
+
     def forward(self, logits, labels):
         n_min = labels[labels != self.ignore_lb].numel() // 16
         loss = self.criteria(logits, labels).view(-1)

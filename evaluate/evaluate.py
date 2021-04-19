@@ -20,7 +20,7 @@ import torch.distributed as dist
 from networks import model_factory
 from configs import cfg_factory
 from utils.logger import setup_logger
-from dataload.cityscapes_cv2 import get_data_loader
+from dataload.rexroth_cv2 import get_data_loader
 
 class MscEvalV0(object):
 
@@ -169,25 +169,25 @@ def eval_model(net, ims_per_gpu, im_root, im_anns):
     logger = logging.getLogger()
 
     single_scale = MscEvalV0((1., ), False)
-    mIOU = single_scale(net, dl, 19)
+    mIOU = single_scale(net, dl, 2)
     heads.append('single_scale')
     mious.append(mIOU)
     logger.info('single mIOU is: %s\n', mIOU)
 
-    single_crop = MscEvalCrop(cropsize=1024, cropstride=2. /3, flip=False, scales=(1., ), lb_ignore=255)
-    mIOU = single_crop(net, dl, 19)
+    single_crop = MscEvalCrop(cropsize=640, cropstride=2. /3, flip=False, scales=(0.5, 0.75, 1.0, 1.5, 1.75), lb_ignore=255)
+    mIOU = single_crop(net, dl, 2)
     heads.append('single_scale_crop')
     mious.append(mIOU)
     logger.info('single scale crop mIOU is :%s\n', mIOU)
 
-    ms_flip = MscEvalV0((0.5, 0.75, 1.0, 1.25, 1.5, 1.75), True)
-    mIOU = ms_flip(net, dl, 19)
+    ms_flip = MscEvalV0(( 1.0, ), True)
+    mIOU = ms_flip(net, dl, 2)
     heads.append('single_scale_crop')
     mious.append(mIOU)
     logger.info('ms flip mIOU is: %s\n', mIOU)
 
-    msc_flip_crop = MscEvalCrop(cropsize=1024, cropstride=2./ 3, flip=True, scales=(0.5, 0.75, 1.0, 1.5, 1.75), lb_ignore=255)
-    mIOU = msc_flip_crop(net, dl, 19)
+    msc_flip_crop = MscEvalCrop(cropsize=640, cropstride=2./ 3, flip=True, scales=(0.5, 0.75, 1.0, 1.5, 1.75), lb_ignore=255)
+    mIOU = msc_flip_crop(net, dl, 2)
     heads.append('ms_flip_crop')
     mious.append(mIOU)
     logger.info('ms crop mIOU is: %s\n', mIOU)
@@ -197,7 +197,7 @@ def evaluate(cfg, weight_pth):
     logger = logging.getLogger()
 
     logger.info('setup and restore model')
-    net = model_factory[cfg.model_type](19)
+    net = model_factory[cfg.model_type](cfg.categories)
 
     net.load_state_dict(torch.load(weight_pth))
     net.cuda()
@@ -213,7 +213,7 @@ def evaluate(cfg, weight_pth):
 def parse_args():
     parse = argparse.ArgumentParser()
     parse.add_argument('--local_rank', dest='local_rank', type=int, default=-1, )
-    parse.add_argument('--weight-path', dest='weight_path', type=str, default='model_final.pth', )
+    parse.add_argument('--weight-path', dest='weight_path', type=str, default='./res/model_monorail.pth', )
     parse.add_argument('--port', dest='port', type=int, default=44553, )
     parse.add_argument('--model', dest='model', type=str, default='bisenetv1')
     return parse.parse_args()

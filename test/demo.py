@@ -16,14 +16,14 @@ np.random.seed(123)
 
 parse = argparse.ArgumentParser()
 parse.add_argument('--model', dest='model', type=str, default='bisenetv1',)
-parse.add_argument('--weight-path', dest='weight_path', type=str, default='./res/model_final.pth',)
-parse.add_argument('--img-path', dest='img_path', type=str, default='./example.png',)
+parse.add_argument('--weight-path', dest='weight_path', type=str, default='./res/model_monorail.pth',)
+parse.add_argument('--img-path', dest='img_path', type=str, default='./test_resized.png',)
 args = parse.parse_args()
 cfg = cfg_factory[args.model]
 
 palette = np.random.randint(0,256, (256, 3), dtype=np.uint8)
 
-net = model_factory[cfg.model_type](19)
+net = model_factory[cfg.model_type](cfg.categories)
 net.load_state_dict(torch.load(args.weight_path, map_location='cpu'))
 net.eval()
 net.cuda()
@@ -35,6 +35,8 @@ to_tensor = T.ToTensor(
 im = cv2.imread(args.img_path)[:, :, ::-1]
 im = to_tensor(dict(im=im, lb=None))['im'].unsqueeze(0).cuda()
 
-out = net(im)[0].argmax(dim=1).squeeze().detach().cpu().numpy()
+out = net(im)[0]
+print(out.shape)
+out = out.argmax(dim=1).squeeze().detach().cpu().numpy()
 pred = palette[out]
-cv2.imwrite('./res.jpg', pred)
+cv2.imwrite('./test_resized_pred.png', pred)

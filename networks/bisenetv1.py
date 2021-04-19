@@ -275,7 +275,7 @@ class BiSeNetV1(nn.Module):
         return wd_params, nowd_params, lr_mul_wd_params, lr_mul_nowd_params
 
 if __name__ == "__main__":
-    net = BiSeNetV1(19)
+    net = BiSeNetV1(3)
     net.cuda()
     net.eval()
     in_ten = torch.randn(16,3,640,480).cuda()

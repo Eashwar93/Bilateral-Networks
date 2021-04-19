@@ -16,14 +16,19 @@ import torch.distributed as dist
 from torch.utils.data import DataLoader
 import torch.cuda.amp as amp
 
+import cv2
+import numpy as np
+
 from networks import model_factory
 from configs import cfg_factory
-from dataload.cityscapes_cv2 import get_data_loader
+from dataload.rexroth_cv2 import get_data_loader
 from evaluate.evaluate import eval_model
 from ohem_ce_loss import OhemCELoss
 from lr_scheduler import WarmupPolyLrScheduler
 from utils.meters import TimeMeter, AvgMeter
 from utils.logger import setup_logger, print_log_msg
+
+import gc
 
 torch.manual_seed(123)
 torch.cuda.manual_seed(123)
@@ -43,14 +48,16 @@ args = parse_args()
 cfg = cfg_factory[args.model]
 
 def set_model():
-    net = model_factory[cfg.model_type](19)
+    net = model_factory[cfg.model_type](cfg.categories)
     if not args.finetune_from is None:
         net.load_state_dict(torch.load(args.finetune_from, map_location='cpu'))
     if cfg.use_sync_bn: net = nn.SyncBatchNorm.convert_sync_batchnorm(net)
     net.cuda()
     net.train()
     criteria_pre = OhemCELoss(0.7)
+    # criteria_pre = nn.BCEWithLogitsLoss() # loss change
     criteria_aux = [OhemCELoss(0.7) for _ in range(cfg.num_aux_heads)]
+    # criteria_aux = [nn.BCEWithLogitsLoss() for _ in range(cfg.num_aux_heads)] # loss change
     return net, criteria_pre, criteria_aux
 
 def set_optimizer(model):
@@ -67,7 +74,7 @@ def set_optimizer(model):
         for name, param in model.named_parameters():
             if param.dim() == 1:
                 non_wd_params.append(param)
-            elif param.dim() ==2 or param.dim() == 4:
+            elif param.dim() == 2 or param.dim() == 4:
                 wd_params.append(param)
         params_list = [
             {'params': wd_params, },
@@ -115,21 +122,65 @@ def train():
 
     lr_schdr = WarmupPolyLrScheduler(optim, power=0.9, max_iter=cfg.max_iter, warmup_iter=cfg.warmup_iters, warmup_ratio=0.1, warmup='exp', last_epoch=-1)
 
+    i = 0
+
     for it, (im, lb) in enumerate(dl):
         im = im.cuda()
         lb= lb.cuda()
 
         lb = torch.squeeze(lb, 1)
 
+
         optim.zero_grad()
         with amp.autocast(enabled=cfg.use_fp16):
             logits, *logits_aux = net(im)
+
+            # if i==0:
+            #     print("pred tensorshape ", logits.shape)
+            #     print("label tensor shape", lb.shape)
+            #
+            #     print("before argmax", logits[0].shape)
+            #     guess_np = logits[0].argmax(dim=0)
+            #     print("before squeeze", guess_np.shape)
+            #     guess_np = guess_np.squeeze().detach().cpu().numpy()
+            #     print("after squeeze", guess_np.shape)
+            #     lable = lb[0].detach().cpu().numpy()
+            #     print(guess_np.dtype)
+            #     print(lable.dtype)
+            #
+            #     palette = np.random.randint(0, 256, (256, 3), dtype=np.uint8)
+            #     guess_np = palette[guess_np]
+            #     lable = palette[lable]
+            #     sample_image = im[0].detach().cpu().numpy()
+            #     print("train image dim:", sample_image.shape)
+            #     # cv2.imwrite('image.png', sample_image)
+            #     cv2.imwrite('pred.jpg', guess_np)
+            #     cv2.imwrite("label.jpg", lable)
+            #
+            #     ## write single prediction and label to 2 seperate files
+            #     pred = logits[0].detach().cpu().numpy()
+            #     img = im[0].detach().cpu().numpy()
+            #     print(img.shape)
+            #     # print(pred)
+            #     labeleee = lb[0].detach().cpu().numpy()
+            #     with open('pred.txt', 'w') as outfile:
+            #         for slice_2d in pred:
+            #             np.savetxt(outfile, slice_2d)
+            #     np.savetxt('label.txt', labeleee)
+            #     with open('img.txt', 'w') as infile:
+            #         for slice_2d in img:
+            #             np.savetxt(infile, slice_2d)
+
+
             loss_pre = criteria_pre(logits, lb)
             loss_aux = [crit(lgt, lb) for crit, lgt in zip(criteria_aux, logits_aux)]
             loss = loss_pre + sum(loss_aux)
+
+
         scaler.scale(loss).backward()
         scaler.step(optim)
         scaler.update()
+        print ("step 1")
         torch.cuda.synchronize()
 
         time_meter.update()
@@ -143,6 +194,9 @@ def train():
             print_log_msg(
                 it, cfg.max_iter, lr, time_meter, loss_meter, loss_pre_meter, loss_aux_meters)
         lr_schdr.step()
+        print("step 2")
+        i = i + 1
+
 
     save_pth = osp.join(cfg.respth, 'model_final.pth')
     logger.info('\nsave models to {}'.format(save_pth))

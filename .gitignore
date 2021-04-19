@@ -1,2 +1,8 @@
 .idea
 res
+configs/__pycache__
+dataload/__pycache__
+evaluate/__pycache__
+networks/__pycache__
+train/__pycache__
+utils/__pycache__
