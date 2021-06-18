@@ -23,9 +23,9 @@ labels_info = [
 
 
 class Rexroth(BaseDataset):
-    def __init__(self, dataroot, annpath, trans_func=None, mode='train'):
+    def __init__(self, dataroot, annpath, trans_func=None, mode='train', n_cats=3):
         super(Rexroth, self).__init__(dataroot, annpath, trans_func, mode)
-        self.n_cats = 2
+        self.n_cats = n_cats
         self.lb_ignore = 255
         self.lb_map = np.arange(256).astype(np.uint8)
         for el in labels_info:
@@ -36,7 +36,7 @@ class Rexroth(BaseDataset):
             std=(0.2112, 0.2148, 0.2115)
         )
 
-def get_data_loader(datapth, annpath, ims_per_gpu, scales, cropsize, max_iter=None, mode='train', distributed=True):
+def get_data_loader(datapth, annpath, ims_per_gpu, scales, cropsize, max_iter=None, mode='train', distributed=True, n_cats=3):
     if mode == 'train':
         trans_func = TransformationTrain(scales, cropsize)
         print("scales in dataloader:", scales)
@@ -49,7 +49,7 @@ def get_data_loader(datapth, annpath, ims_per_gpu, scales, cropsize, max_iter=No
         shuffle = False
         drop_last = False
 
-    ds = Rexroth(datapth, annpath, trans_func=trans_func, mode=mode)
+    ds = Rexroth(datapth, annpath, trans_func=trans_func, mode=mode, n_cats=n_cats)
 
     if distributed:
         assert dist.is_available(), "dist should be initialized"

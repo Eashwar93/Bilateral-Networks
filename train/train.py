@@ -141,7 +141,7 @@ def train():
     dl = get_data_loader(
             cfg.im_root, cfg.train_im_anns,
             cfg.ims_per_gpu, cfg.scales, cfg.cropsize,
-            cfg.max_iter, mode='train', distributed=is_dist)
+            cfg.max_iter, mode='train', distributed=is_dist, n_cats=cfg.categories)
 
     ## model
     if cfg.aux_output:
