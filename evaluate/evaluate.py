@@ -1,5 +1,3 @@
-
-
 import sys
 sys.path.insert(0, '.')
 import os
@@ -24,6 +22,7 @@ from dataload.rexroth_cv2 import get_data_loader
 
 class MscEvalV0(object):
 
+
     def __init__(self, scales=(0.5, ), flip=False, ignore_label=255):
         self.scales = scales
         self.flip = flip
@@ -46,12 +45,12 @@ class MscEvalV0(object):
                 sH, sW = int(scale * H), int(scale * W)
                 im_sc = F.interpolate(imgs, size=(sH, sW), mode='bilinear', align_corners=True)
                 im_sc = im_sc.cuda()
-                logits = net(im_sc)[0]
+                logits = net(im_sc)
                 logits = F.interpolate(logits, size=size, mode='bilinear', align_corners=True)
                 probs += torch.softmax(logits, dim=1)
                 if self.flip:
                     im_sc = torch.flip(im_sc, dims=(3, ))
-                    logits = net(im_sc)[0]
+                    logits = net(im_sc)
                     logits = torch.flip(logits, dims=(3, ))
                     logits = F.interpolate(logits, size=size, mode='bilinear', align_corners=True)
                     probs += torch.softmax(logits, dim=1)
@@ -70,7 +69,7 @@ class MscEvalV0(object):
 
 class MscEvalCrop(object):
 
-    def __init__(self, cropsize=1024, cropstride=2./3, flip=True, scales=[0.5, 0.75, 1, 1.25, 1.5, 1.75], lb_ignore=255, ):
+    def __init__(self, cropsize=1024, cropstride=2./3, flip=True, scales=[0.5, 0.75, 1, 1.25, 1.5, 1.75], lb_ignore=255,):
         self.scales = scales
         self.ignore_label = lb_ignore
         self.flip = flip
@@ -93,10 +92,10 @@ class MscEvalCrop(object):
         return outten, [hst, hed, wst, wed]
 
     def eval_chip(self, net, crop):
-        prob = net(crop)[0].softmax(dim=1)
+        prob = net(crop).softmax(dim=1)
         if self.flip:
             crop = torch.flip(crop, dims=(3,))
-            prob += net(crop)[0].flip(dims=(3,)).softmax(dim=1)
+            prob += net(crop).flip(dims=(3,)).softmax(dim=1)
             prob = torch.exp(prob)
         return prob
 
@@ -117,7 +116,7 @@ class MscEvalCrop(object):
                 stH, stW = strdH * i, strdW * j
                 endH, endW = min(H, stH + cropH), min(W, stW + cropW)
                 stH, stW = endH - cropH, endW - cropW
-                chip = im [:, :, stH:endH, stW:endW]
+                chip = im[:, :, stH:endH, stW:endW]
                 prob[:, :, stH:endH, stW:endW] += self.eval_chip(net, chip)
         hst, hed, wst, wed = indices
         prob = prob[:, :, hst:hed, wst:wed]
@@ -170,36 +169,37 @@ def eval_model(net, ims_per_gpu, im_root, im_anns):
 
     single_scale = MscEvalV0((1., ), False)
     mIOU = single_scale(net, dl, 2)
-    heads.append('single_scale')
+    heads.append('single-scale')
     mious.append(mIOU)
-    logger.info('single mIOU is: %s\n', mIOU)
+    logger.info('single-scale mIOU is: %s\n', mIOU)
 
-    single_crop = MscEvalCrop(cropsize=640, cropstride=2. /3, flip=False, scales=(0.5, 0.75, 1.0, 1.5, 1.75), lb_ignore=255)
+    single_crop = MscEvalCrop(cropsize=(480,640), cropstride=2./3, flip=False, scales=(0.5, 0.75, 1.0, 1.5, 1.75), lb_ignore=255)
     mIOU = single_crop(net, dl, 2)
-    heads.append('single_scale_crop')
+    heads.append('multi-scale_single_crop')
     mious.append(mIOU)
-    logger.info('single scale crop mIOU is :%s\n', mIOU)
+    logger.info('multi-scale_single_crop mIOU is :%s\n', mIOU)
 
-    ms_flip = MscEvalV0(( 1.0, ), True)
+    ms_flip = MscEvalV0((1.0, ), True)#############
     mIOU = ms_flip(net, dl, 2)
-    heads.append('single_scale_crop')
+    heads.append('multi_crop_flip')
     mious.append(mIOU)
-    logger.info('ms flip mIOU is: %s\n', mIOU)
+    logger.info('multi-crop_flip mIOU is: %s\n', mIOU)
 
-    msc_flip_crop = MscEvalCrop(cropsize=640, cropstride=2./ 3, flip=True, scales=(0.5, 0.75, 1.0, 1.5, 1.75), lb_ignore=255)
+    msc_flip_crop = MscEvalCrop(cropsize=(480,640), cropstride=2./3, flip=True, scales=(0.5, 0.75, 1.0, 1.5, 1.75), lb_ignore=255)
     mIOU = msc_flip_crop(net, dl, 2)
-    heads.append('ms_flip_crop')
+    heads.append('multi-scale_flip_crop')
     mious.append(mIOU)
-    logger.info('ms crop mIOU is: %s\n', mIOU)
+    logger.info('multi-scale_flip_crop mIOU is: %s\n', mIOU)
     return heads, mious
+
 
 def evaluate(cfg, weight_pth):
     logger = logging.getLogger()
 
     logger.info('setup and restore model')
-    net = model_factory[cfg.model_type](cfg.categories)
+    net = model_factory[cfg.model_type](n_classes=cfg.categories, aux_output=False)
 
-    net.load_state_dict(torch.load(weight_pth))
+    net.load_state_dict(torch.load(weight_pth), strict=False)
     net.cuda()
 
     is_dist = dist.is_initialized()
@@ -210,13 +210,15 @@ def evaluate(cfg, weight_pth):
     heads, mious = eval_model(net, 2, cfg.im_root, cfg.val_im_anns)
     logger.info(tabulate([mious, ], headers=heads, tablefmt='orgtbl'))
 
+
 def parse_args():
     parse = argparse.ArgumentParser()
     parse.add_argument('--local_rank', dest='local_rank', type=int, default=-1, )
-    parse.add_argument('--weight-path', dest='weight_path', type=str, default='./res/model_monorail.pth', )
+    parse.add_argument('--weight-path', dest='weight_path', type=str, default='./res/fanet18_v4_softmax.pth')
     parse.add_argument('--port', dest='port', type=int, default=44553, )
-    parse.add_argument('--model', dest='model', type=str, default='bisenetv1')
+    parse.add_argument('--model', dest='model', type=str, default='fanet18_v4')
     return parse.parse_args()
+
 
 def main():
     args =  parse_args()
@@ -231,6 +233,7 @@ def main():
     if not osp.exists(cfg.respth): os.makedirs(cfg.respth)
     setup_logger('{}-eval'.format(cfg.model_type), cfg.respth)
     evaluate(cfg, args.weight_path)
+
 
 if __name__ == "__main__":
     main()

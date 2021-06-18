@@ -1,13 +1,8 @@
-
-
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.utils.model_zoo as modelzoo
-from torchviz import make_dot
-
-
 from pytorch_model_summary import summary
+from torchviz import make_dot
 
 resnet18_url = 'https://download.pytorch.org/models/resnet18-5c106cde.pth'
 
@@ -23,6 +18,7 @@ class BasicBlock(nn.Module):
         self.bn1 = BatchNorm2d(out_chan)
         self.conv2 = conv3x3(out_chan, out_chan)
         self.bn2 = BatchNorm2d(out_chan)
+        self.leakyrelu = nn.LeakyReLU(inplace=True)
         self.relu = nn.ReLU(inplace=True)
         self.downsample = None
         if in_chan != out_chan or stride != 1:
@@ -33,7 +29,7 @@ class BasicBlock(nn.Module):
     def forward(self,x):
         residual = self.conv1(x)
         residual = self.bn1(residual)
-        residual = self.relu(residual)
+        residual = self.leakyrelu(residual)
         residual = self.conv2(residual)
         residual = self.bn2(residual)
 
@@ -56,7 +52,7 @@ class Resnet18(nn.Module):
         super(Resnet18, self).__init__()
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = BatchNorm2d(64)
-        self.relu = nn.ReLU(inplace=True)
+        self.leakyrelu = nn.LeakyReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = create_layer_basic(64, 64, bnum=2, stride=1)
         self.layer2 = create_layer_basic(64, 128, bnum=2, stride=2)
@@ -67,13 +63,13 @@ class Resnet18(nn.Module):
     def forward(self, x):
         x = self.conv1(x)
         x = self.bn1(x)
-        x = self.relu(x)
+        x = self.leakyrelu(x)
         x = self.maxpool(x)
 
-        x = self.layer1(x)
-        feat8 = self.layer2(x)
-        feat16 = self.layer3(feat8)
-        feat32 = self.layer4(feat16)
+        feat8 = self.layer1(x)
+        feat16 = self.layer2(feat8)
+        feat32 = self.layer3(feat16)
+
         return feat8, feat16, feat32
 
     def init_weight(self):
@@ -81,6 +77,7 @@ class Resnet18(nn.Module):
         self_state_dict = self.state_dict()
         for k,v in state_dict.items():
             if 'fc' in k: continue
+            if 'layer1' in k: continue
             self_state_dict.update({k: v})
         self.load_state_dict(self_state_dict)
 
@@ -98,15 +95,10 @@ class Resnet18(nn.Module):
 
 if __name__ == "__main__":
     net = Resnet18()
-    x = torch.randn(16, 3, 224, 224)
+    x = torch.randn(16, 3, 480, 640)
     out = net(x)
     print(out[0].size())
     print(out[1].size())
     print(out[2].size())
     print(summary(net, x, show_input=True))
     make_dot(out)
-
-
-
-
-

@@ -16,8 +16,8 @@ np.random.seed(123)
 
 parse = argparse.ArgumentParser()
 parse.add_argument('--model', dest='model', type=str, default='bisenetv1',)
-parse.add_argument('--weight-path', dest='weight_path', type=str, default='./res/model_monorail.pth',)
-parse.add_argument('--img-path', dest='img_path', type=str, default='./test_resized.png',)
+parse.add_argument('--weight-path', dest='weight_path', type=str, default='./res/model_monorail_rotated.pth',)
+parse.add_argument('--img-path', dest='img_path', type=str, default='./152.png',)
 args = parse.parse_args()
 cfg = cfg_factory[args.model]
 
@@ -39,4 +39,4 @@ out = net(im)[0]
 print(out.shape)
 out = out.argmax(dim=1).squeeze().detach().cpu().numpy()
 pred = palette[out]
-cv2.imwrite('./test_resized_pred.png', pred)
+cv2.imwrite('./res_152.png', pred)

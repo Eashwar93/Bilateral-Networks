@@ -29,7 +29,7 @@ class RamdomResizedCrop(object):
         if im_h < crop_h:
             pad_h = (crop_h - im_h) // 2 + 1
         if im_w < crop_w:
-            pad_w = (crop_w - im_w) //2 + 1
+            pad_w = (crop_w - im_w) // 2 + 1
         if pad_h > 0 or pad_w > 0:
             im = np.pad(im, ((pad_h, pad_h), (pad_w, pad_w), (0,0)))
             lb = np.pad(lb, ((pad_h, pad_h), (pad_w, pad_w)), 'constant', constant_values=255)

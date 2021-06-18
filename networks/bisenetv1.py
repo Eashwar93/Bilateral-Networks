@@ -1,15 +1,17 @@
 
-
+import sys
+sys.path.insert(0, '.')
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torchvision
 
-from pytorch_model_summary import summary
 
 from .resnet import Resnet18
 
 from torch.nn import BatchNorm2d
+
+from prettytable import PrettyTable
+from ptflops import get_model_complexity_info
+import time
 
 class ConvBNRelu(nn.Module):
     def __init__(self, in_chan, out_chan, ks=3, stride =1, padding=1, *args, **kwargs):
@@ -230,14 +232,15 @@ class FeatureFusionModel(nn.Module):
 
 class BiSeNetV1(nn.Module):
 
-    def __init__(self, n_classes, output_aux=True, *args, **kwargs):
+    def __init__(self, n_classes, aux_output=True, export=False, *args, **kwargs):
         super(BiSeNetV1, self).__init__()
         self.cp = ContextPath()
         self.sp = SpatialPath()
         self.ffm = FeatureFusionModel(256, 256)
         self.conv_out = BiseNetOutput(256, 256, n_classes, up_factor=8)
-        self.output_aux = output_aux
-        if self.output_aux:
+        self.aux_output = aux_output
+        self.export = export
+        if self.aux_output:
             self.conv_out16 = BiseNetOutput(128, 64, n_classes, up_factor=8)
             self.conv_out32 = BiseNetOutput(128, 64, n_classes, up_factor=16)
         self.init_weight()
@@ -249,11 +252,13 @@ class BiSeNetV1(nn.Module):
         feat_fuse = self.ffm(feat_sp, feat_cp8)
 
         feat_out = self.conv_out(feat_fuse)
-        if self.output_aux:
+        if self.export:
+            feat_out = feat_out.argmax(dim=1)
+            return feat_out
+        if self.aux_output:
             feat_out16 = self.conv_out16(feat_cp8)
             feat_out32 = self.conv_out32(feat_cp16)
             return feat_out, feat_out16, feat_out32
-        feat_out = feat_out.argmax(dim=1)
         return feat_out
 
     def init_weight(self):
@@ -274,17 +279,42 @@ class BiSeNetV1(nn.Module):
                 nowd_params += child_nowd_params
         return wd_params, nowd_params, lr_mul_wd_params, lr_mul_nowd_params
 
+def count_parameters(model):
+    table = PrettyTable(["Modules", "Parameters"])
+    total_params = 0
+    for name, parameter in model.named_parameters():
+        if not parameter.requires_grad: continue
+        param = parameter.numel()
+        table.add_row([name, param])
+        total_params+=param
+    print(table)
+    print(f"Total Trainable Params: {total_params}")
+    return total_params
+
 if __name__ == "__main__":
-    net = BiSeNetV1(3)
-    net.cuda()
+    net = BiSeNetV1(2, False).cuda()
+    x = torch.randn(1, 3, 480, 640).cuda()
     net.eval()
-    in_ten = torch.randn(16,3,640,480).cuda()
-    #out, out16, out32 = net(in_ten)
-    #print(out.shape)
-    #print(out16.shape)
-    #print(out32.shape)
-    print(summary(net, in_ten, show_input=True))
-    net.get_params()
+    net.init_weight()
+    with torch.no_grad():
+        torch.cuda.synchronize()
+        out = net(x)
+        torch.cuda.synchronize()
+        start_ts = time.time()
+        for i in range(100):
+            out = net(x)
+        torch.cuda.synchronize()
+        end_ts = time.time()
+        t_diff = end_ts-start_ts
+        print("FPS: %f" % (100 / t_diff))
+    macs, params = get_model_complexity_info(net, (3, 480, 640), as_strings=True,
+                                             print_per_layer_stat=False, verbose=False)
+    print('{:<30}  {:<8}'.format('Computational complexity: ', macs))
+    print('{:<30}  {:<8}'.format('Number of parameters: ', params))
+    out = net(x)
+    print("Output size: ", out.size())
+    count_parameters(net)
+
 
 
 

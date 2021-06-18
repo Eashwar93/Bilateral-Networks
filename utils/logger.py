@@ -40,3 +40,26 @@ def print_log_msg(it, max_iter, lr, time_meter, loss_meter, loss_pre_meter, loss
     msg += ', ' + loss_aux_avg
     logger = logging.getLogger()
     logger.info(msg)
+
+def print_log_msg_withoutaux(it, max_iter, lr, time_meter, loss_meter):
+    t_intv, eta = time_meter.get()
+    loss_avg, _ = loss_meter.get()
+
+    msg = ', '.join([
+        'iter: {it}/{max_it}',
+        'lr: {lr:4f}',
+        'eta: {eta}',
+        'time: {time:.2f}',
+        'loss: {loss:.4f}',
+
+    ]).format(
+        it=it+1,
+        max_it=max_iter,
+        lr=lr,
+        time=t_intv,
+        eta=eta,
+        loss=loss_avg,
+
+    )
+    logger = logging.getLogger()
+    logger.info(msg)

@@ -91,8 +91,8 @@ if __name__ == "__main__":
     model = torch.nn.Conv2d(3,16,3,1,1)
     optim = torch.optim.SGD(model.parameters(), lr=1e-3)
 
-    max_iter = 20000
-    lr_scheduler = WarmupPolyLrScheduler(optim, 0.9, max_iter, 200, 0.1, 'linear', -1)
+    max_iter = 3200
+    lr_scheduler = WarmupPolyLrScheduler(optim, 0.9, max_iter, 100, 0.1, 'exp', -1)
     lrs = []
     for _ in range(max_iter):
         lr = lr_scheduler.get_lr()[0]

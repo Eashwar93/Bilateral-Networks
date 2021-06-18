@@ -16,4 +16,5 @@ cfg = dict(
     use_fp16=True,
     use_sync_bn=False,
     respth='./res',
+    save_name='bisenet_v1.pth',
 )

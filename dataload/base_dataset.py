@@ -1,5 +1,4 @@
 
-
 import os
 import os.path as osp
 import json
@@ -63,8 +62,10 @@ class TransformationTrain(object):
         ])
 
     def __call__(self, im_lb):
-        im, lb = im_lb['im'], im_lb['lb']
-        return dict(im=im, lb=lb)
+        im_lb = self.trans_func(im_lb)
+        return im_lb
+        # im, lb = im_lb['im'], im_lb['lb']
+        # return dict(im=im, lb=lb)
 
 class TransformationVal(object):
 

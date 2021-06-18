@@ -39,6 +39,7 @@ class Rexroth(BaseDataset):
 def get_data_loader(datapth, annpath, ims_per_gpu, scales, cropsize, max_iter=None, mode='train', distributed=True):
     if mode == 'train':
         trans_func = TransformationTrain(scales, cropsize)
+        print("scales in dataloader:", scales)
         batchsize = ims_per_gpu
         shuffle = True
         drop_last = True
@@ -73,13 +74,13 @@ if __name__ == "__main__":
     from tqdm import tqdm
     from torch.utils.data import DataLoader
 
-    ds = Rexroth(dataroot='datasets/Rexroth',annpath='datasets/Rexroth/train.txt', mode='val')
+    ds = Rexroth(dataroot='./datasets/Rexroth',annpath='./datasets/Rexroth/train.txt', mode='val')
     dl = DataLoader(ds,
                     batch_size = 4,
                     shuffle = False,
                     num_workers = 4,
                     drop_last = True)
-    f = open("dim_check.txt", "a")
+    # f = open("dim_check.txt", "a")
     for it, (imgs, label) in enumerate(dl):
         # f.write("it:"+it+"\n")
         # f.write("batchesize:" + len(imgs) + "\n")

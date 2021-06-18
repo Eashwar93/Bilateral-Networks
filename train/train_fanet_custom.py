@@ -15,12 +15,12 @@ from tabulate import tabulate
 import torch
 import torch.nn as nn
 import torch.distributed as dist
-from torch.utils.data import DataLoader
+
 
 from networks import model_factory
 from configs import cfg_factory
 from dataload.rexroth_cv2 import get_data_loader
-from evaluate.evaluate import evaluate
+from evaluate.evaluate import eval_model
 from ohem_ce_loss import OhemCELoss
 from lr_scheduler import WarmupPolyLrScheduler
 from utils.meters import TimeMeter, AvgMeter
@@ -40,37 +40,28 @@ torch.cuda.manual_seed(123)
 np.random.seed(123)
 random.seed(123)
 torch.backends.cudnn.deterministic = True
-#  torch.backends.cudnn.benchmark = True
-#  torch.multiprocessing.set_sharing_strategy('file_system')
-
-
-
 
 def parse_args():
     parse = argparse.ArgumentParser()
     parse.add_argument('--local_rank', dest='local_rank', type=int, default=-1,)
     parse.add_argument('--port', dest='port', type=int, default=44554,)
-    parse.add_argument('--model', dest='model', type=str, default='fanet18_v1_se3')
+    parse.add_argument('--model', dest='model', type=str, default='fanet_custom_v3',)
     parse.add_argument('--finetune-from', type=str, default=None,)
     return parse.parse_args()
 
 args = parse_args()
 cfg = cfg_factory[args.model]
 
-
 def set_model():
-    net = model_factory[cfg.model_type](n_classes=cfg.categories, aux_output=cfg.aux_output, export=False)
+    net = model_factory[cfg.model_type](cfg.categories)
     if not args.finetune_from is None:
         net.load_state_dict(torch.load(args.finetune_from, map_location='cpu'))
     if cfg.use_sync_bn: net = set_syncbn(net)
     net.cuda()
     net.train()
-    criteria_pre = OhemCELoss(0.7)
-    if cfg.aux_output:
-        criteria_aux = [OhemCELoss(0.7) for _ in range(cfg.num_aux_heads)]
-        return net, criteria_pre, criteria_aux
-    else:
-        return net, criteria_pre
+    criteria = OhemCELoss(0.7)
+    criteria_aux = [OhemCELoss(0.7) for _ in range(cfg.num_aux_heads)]
+    return net, criteria, criteria_aux
 
 def set_syncbn(net):
     if has_apex:
@@ -86,8 +77,8 @@ def set_optimizer(model):
         params_list = [
             {'params': wd_params, },
             {'params': nowd_params, 'weight_decay': 0},
-            {'params': lr_mul_wd_params, 'lr': cfg.lr_start * cfg.lr_multiplier},
-            {'params': lr_mul_nowd_params, 'weight_decay': 0, 'lr': cfg.lr_start * cfg.lr_multiplier},
+            {'params': lr_mul_wd_params, 'lr': cfg.lr_start * 2},
+            {'params': lr_mul_nowd_params, 'weight_decay': 0, 'lr': cfg.lr_start * 2},
         ]
     else:
         wd_params, non_wd_params = [], []
@@ -123,14 +114,12 @@ def set_model_dist(net):
 
 def set_meters():
     time_meter = TimeMeter(cfg.max_iter)
-    loss_meter = AvgMeter('loss')
-    loss_pre_meter = AvgMeter('loss_prem')
-    if cfg.aux_output:
-        loss_aux_meters = [AvgMeter('loss_aux{}'.format(i))
-                for i in range(cfg.num_aux_heads)]
-        return time_meter, loss_meter, loss_pre_meter, loss_aux_meters
-    else:
-        return time_meter, loss_meter, loss_pre_meter
+    total_loss_meter = AvgMeter('Total_loss')
+    loss_meter = AvgMeter('primary_loss')
+
+    loss_aux_meters = [AvgMeter('loss_aux{}'.format(i))
+            for i in range(cfg.num_aux_heads)]
+    return time_meter, total_loss_meter,loss_meter, loss_aux_meters
 
 
 def train():
@@ -144,10 +133,7 @@ def train():
             cfg.max_iter, mode='train', distributed=is_dist)
 
     ## model
-    if cfg.aux_output:
-        net, criteria_pre, criteria_aux = set_model()
-    else:
-        net, criteria_pre = set_model()
+    net, criteria, criteria_aux = set_model()
 
     ## optimizer
     optim = set_optimizer(net)
@@ -161,10 +147,8 @@ def train():
     net = set_model_dist(net)
 
     ## meters
-    if cfg.aux_output:
-        time_meter, loss_meter, loss_pre_meter, loss_aux_meters = set_meters()
-    else:
-        time_meter, loss_meter, loss_pre_meter = set_meters()
+    time_meter, total_loss_meter, loss_meter, loss_aux_meters = set_meters()
+
     ## lr scheduler
     lr_schdr = WarmupPolyLrScheduler(optim, power=0.9,
         max_iter=cfg.max_iter, warmup_iter=cfg.warmup_iters,
@@ -178,41 +162,32 @@ def train():
         lb = torch.squeeze(lb, 1)
 
         optim.zero_grad()
-        if cfg.aux_output:
-            logits, *logits_aux = net(im)
-        else:
-            logits = net(im)
-        loss_pre = criteria_pre(logits, lb)
-        loss = loss_pre
-        if cfg.aux_output:
-            loss_aux = [crit(lgt, lb) for crit, lgt in zip(criteria_aux, logits_aux)]
-            loss = loss_pre + sum(loss_aux)
+        logits, *logits_aux = net(im)
+        loss = criteria(logits, lb)
+        loss_aux = [crit(lgt, lb) for crit, lgt in zip(criteria_aux, logits_aux)]
+        total_loss = loss+sum(loss_aux)
+
         if has_apex:
-            with amp.scale_loss(loss, optim) as scaled_loss:
+            with amp.scale_loss(total_loss, optim) as scaled_loss:
                 scaled_loss.backward()
         else:
-            loss.backward()
+            total_loss.backward()
         optim.step()
         torch.cuda.synchronize()
         lr_schdr.step()
 
         time_meter.update()
+        total_loss_meter.update(total_loss.item())
         loss_meter.update(loss.item())
-        if cfg.aux_output:
-            loss_pre_meter.update(loss_pre.item())
-            _ = [mter.update(lss.item()) for mter, lss in zip(loss_aux_meters, loss_aux)]
+        _ = [mter.update(lss.item()) for mter, lss in zip(loss_aux_meters, loss_aux)]
+
 
         ## print training log message
         if (it + 1) % 100 == 0:
             lr = lr_schdr.get_lr()
             lr = sum(lr) / len(lr)
-            if cfg.aux_output:
-                print_log_msg(
-                    it, cfg.max_iter, lr, time_meter, loss_meter,
-                    loss_pre_meter, loss_aux_meters)
-            else:
-                print_log_msg_withoutaux(
-                    it, cfg.max_iter, lr, time_meter, loss_meter)
+            print_log_msg(
+                it, cfg.max_iter, lr, time_meter, total_loss_meter, loss_meter, loss_aux_meters)
 
     ## dump the final model and evaluate the result
     save_pth = osp.join(cfg.respth, cfg.save_name)
@@ -222,9 +197,8 @@ def train():
 
     logger.info('\nevaluating the final model')
     torch.cuda.empty_cache()
-    evaluate(cfg, save_pth)
-    logger.info("\nTrainer settings: ")
-
+    heads, mious = eval_model(net, 2, cfg.im_root, cfg.val_im_anns)
+    logger.info(tabulate([mious, ], headers=heads, tablefmt='orgtbl'))
 
     return
 
