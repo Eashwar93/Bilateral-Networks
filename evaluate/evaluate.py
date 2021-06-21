@@ -45,12 +45,12 @@ class MscEvalV0(object):
                 sH, sW = int(scale * H), int(scale * W)
                 im_sc = F.interpolate(imgs, size=(sH, sW), mode='bilinear', align_corners=True)
                 im_sc = im_sc.cuda()
-                logits = net(im_sc)
+                logits = net(im_sc) ################
                 logits = F.interpolate(logits, size=size, mode='bilinear', align_corners=True)
                 probs += torch.softmax(logits, dim=1)
                 if self.flip:
                     im_sc = torch.flip(im_sc, dims=(3, ))
-                    logits = net(im_sc)
+                    logits = net(im_sc) ###############
                     logits = torch.flip(logits, dims=(3, ))
                     logits = F.interpolate(logits, size=size, mode='bilinear', align_corners=True)
                     probs += torch.softmax(logits, dim=1)
@@ -92,10 +92,10 @@ class MscEvalCrop(object):
         return outten, [hst, hed, wst, wed]
 
     def eval_chip(self, net, crop):
-        prob = net(crop).softmax(dim=1)
+        prob = net(crop).softmax(dim=1) #######################
         if self.flip:
             crop = torch.flip(crop, dims=(3,))
-            prob += net(crop).flip(dims=(3,)).softmax(dim=1)
+            prob += net(crop).flip(dims=(3,)).softmax(dim=1) #################
             prob = torch.exp(prob)
         return prob
 
@@ -159,34 +159,34 @@ class MscEvalCrop(object):
         return miou.item()
 
 @torch.no_grad()
-def eval_model(net, ims_per_gpu, im_root, im_anns):
+def eval_model(net, ims_per_gpu, im_root, im_anns, cfg):
     is_dist = dist.is_initialized()
-    dl = get_data_loader(im_root, im_anns, ims_per_gpu, None, None, mode='val', distributed=is_dist)
+    dl = get_data_loader(im_root, im_anns, ims_per_gpu, None, None, mode='val', distributed=is_dist, n_cats=cfg.categories)
     net.eval()
 
     heads, mious = [], []
     logger = logging.getLogger()
 
     single_scale = MscEvalV0((1., ), False)
-    mIOU = single_scale(net, dl, 2)
+    mIOU = single_scale(net, dl, cfg.categories)
     heads.append('single-scale')
     mious.append(mIOU)
     logger.info('single-scale mIOU is: %s\n', mIOU)
 
     single_crop = MscEvalCrop(cropsize=(480,640), cropstride=2./3, flip=False, scales=(0.5, 0.75, 1.0, 1.5, 1.75), lb_ignore=255)
-    mIOU = single_crop(net, dl, 2)
+    mIOU = single_crop(net, dl, cfg.categories)
     heads.append('multi-scale_single_crop')
     mious.append(mIOU)
     logger.info('multi-scale_single_crop mIOU is :%s\n', mIOU)
 
     ms_flip = MscEvalV0((1.0, ), True)#############
-    mIOU = ms_flip(net, dl, 2)
+    mIOU = ms_flip(net, dl, cfg.categories)
     heads.append('multi_crop_flip')
     mious.append(mIOU)
     logger.info('multi-crop_flip mIOU is: %s\n', mIOU)
 
     msc_flip_crop = MscEvalCrop(cropsize=(480,640), cropstride=2./3, flip=True, scales=(0.5, 0.75, 1.0, 1.5, 1.75), lb_ignore=255)
-    mIOU = msc_flip_crop(net, dl, 2)
+    mIOU = msc_flip_crop(net, dl, cfg.categories)
     heads.append('multi-scale_flip_crop')
     mious.append(mIOU)
     logger.info('multi-scale_flip_crop mIOU is: %s\n', mIOU)
@@ -207,16 +207,16 @@ def evaluate(cfg, weight_pth):
         local_rank = dist.get_rank()
         net = nn.parallel.DistributedDataParallel(net, device_ids=[local_rank, ], output_device=local_rank)
 
-    heads, mious = eval_model(net, 2, cfg.im_root, cfg.val_im_anns)
+    heads, mious = eval_model(net, 2, cfg.im_root, cfg.val_im_anns, cfg)
     logger.info(tabulate([mious, ], headers=heads, tablefmt='orgtbl'))
 
 
 def parse_args():
     parse = argparse.ArgumentParser()
     parse.add_argument('--local_rank', dest='local_rank', type=int, default=-1, )
-    parse.add_argument('--weight-path', dest='weight_path', type=str, default='./res/fanet18_v4_softmax.pth')
+    parse.add_argument('--weight-path', dest='weight_path', type=str, default='./res/bisenet_v1.pth')
     parse.add_argument('--port', dest='port', type=int, default=44553, )
-    parse.add_argument('--model', dest='model', type=str, default='fanet18_v4')
+    parse.add_argument('--model', dest='model', type=str, default='bisenetv1')
     return parse.parse_args()
 
 

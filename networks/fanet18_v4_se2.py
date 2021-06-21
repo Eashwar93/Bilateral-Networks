@@ -166,6 +166,17 @@ class SqueezeExcitationModule(nn.Module):
         concat_feat = torch.cat([scaled_feat, up_feat], dim=1)
         return concat_feat
 
+    def get_params(self):
+        wd_params, nowd_params = [], []
+        for name, module in self.named_modules():
+            if isinstance(module, (nn.Linear, nn.Conv2d)):
+                wd_params.append(module.weight)
+                if not module.bias is None:
+                    nowd_params.append(module.bias)
+            elif isinstance(module, nn.modules.batchnorm._BatchNorm):
+                nowd_params += list(module.parameters())
+        return wd_params, nowd_params
+
     def init_weight(self):
         for ly in self.children():
             if isinstance(ly, nn.Conv2d):
