@@ -100,7 +100,7 @@ class AttentionRefinementModule(nn.Module):
         atten = self.bn_atten(atten)
         atten = self.sigmoid_atten(atten)
         out = torch.mul(feat, atten)
-        return  out
+        return out
 
     def init_weight(self):
         for ly in self.children():

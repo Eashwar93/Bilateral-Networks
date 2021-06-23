@@ -16,17 +16,20 @@ import time
 up_kwargs = {'mode':'bilinear', 'align_corners':True}
 
 class ConvBNReLU(nn.Module):
-    def __init__(self, in_chan, out_chan, ks=3, stride=1, padding=1, activation='leaky_relu',*args, **kwargs):
+    def __init__(self, in_chan, out_chan, ks=3, stride=1, padding=1, activation='leaky_relu', skip_bn=False, *args, **kwargs):
         super(ConvBNReLU, self).__init__()
         self.activation = activation
+        self.skip_bn = skip_bn
         self.conv = nn.Conv2d(in_chan, out_chan, stride=stride, kernel_size=ks, padding=padding, bias=False)
-        self.bn = nn.BatchNorm2d(out_chan)
+        if not self.skip_bn:
+            self.bn = nn.BatchNorm2d(out_chan)
         self.leaky_relu = nn.LeakyReLU(inplace=True)
         self.init_weight()
 
     def forward(self,x):
         x = self.conv(x)
-        x = self.bn(x)
+        if not self.skip_bn:
+            x = self.bn(x)
         if self.activation == 'leaky_relu':
             x = self.leaky_relu(x)
         elif self.activation == 'none':
@@ -36,7 +39,7 @@ class ConvBNReLU(nn.Module):
     def init_weight(self):
         for ly in self.children():
             if isinstance(ly, nn.Conv2d):
-                nn.init.kaiming_normal_(ly.weight, a=1)
+                nn.init.kaiming_normal_(ly.weight, a=1e-2)
                 if not ly.bias is None: nn.init.constant_(ly.bias, 0)
 
 class FastAttModule(nn.Module):
@@ -72,6 +75,7 @@ class FastAttModule(nn.Module):
 
         key_ = key.view(N, 32, -1)
         key = torch.softmax(key_, dim=1)
+
 
         value = value.view(N, C, -1).permute(0,2,1)
 
@@ -121,15 +125,52 @@ class FastAttModule(nn.Module):
     def init_weight(self):
         for ly in self.children():
             if isinstance(ly, nn.Conv2d):
-                nn.init.kaiming_normal_(ly.weight, a=1)
+                nn.init.kaiming_normal_(ly.weight, a=1e-2)
                 if not ly.bias is None: nn.init.constant_(ly.bias, 0)
+
+class FeatureFusionModel(nn.Module):
+    def __init__(self, in_chan, out_chan, *args, **kwargs):
+        super(FeatureFusionModel, self).__init__()
+        self.convblk = ConvBNReLU(in_chan, out_chan, ks=1, stride=1, padding=0, activation='leaky_relu', skip_bn=False)
+        self.con1 = ConvBNReLU(out_chan, out_chan//4, ks=1, stride=1, padding=0, activation='leaky_relu', skip_bn=True)
+        self.con2 = ConvBNReLU(out_chan//4, out_chan, ks=1, stride=1, padding=0, activation='none', skip_bn=True)
+        self.sigmoid = nn.Sigmoid()
+        self.init_weight()
+
+    def forward(self, feat):
+        feat = self.convblk(feat)
+        atten = torch.mean(feat, dim=(2,3), keepdim=True)
+        atten = self.con1(atten)
+        atten = self.con2(atten)
+        atten = self.sigmoid(atten)
+        feat_atten = torch.mul(feat,atten)
+        feat_out = feat_atten + feat
+        return feat_out
+
+    def init_weight(self):
+        for ly in self.children():
+            if isinstance(ly, nn.Conv2d):
+                nn.init.kaiming_normal_(ly.weight, a=1e-2)
+                if not ly.bias is None: nn.init.constant_(ly.bias, 0)
+
+    def get_params(self):
+        wd_params, nowd_params = [], []
+        for name, module in self.named_modules():
+            if isinstance(module, (nn.Linear, nn.Conv2d)):
+                wd_params.append(module.weight)
+                if not module.bias is None:
+                    nowd_params.append(module.bias)
+            elif isinstance(module, nn.modules.batchnorm._BatchNorm):
+                nowd_params += list(module.parameters())
+        return wd_params, nowd_params
+
 
 class FPNOutput(nn.Module):
     def __init__(self, in_chan, mid_chan, n_classes, *args, **kwargs):
         super(FPNOutput, self).__init__()
         self._up_kwargs=up_kwargs
         self.conv = ConvBNReLU(in_chan=in_chan, out_chan=mid_chan, ks=3, padding=1, activation='leaky_relu')
-        self.conv_out = nn.Conv2d(mid_chan, n_classes, kernel_size=1, bias=False)
+        self.conv_out = nn.Conv2d(mid_chan, n_classes, kernel_size=1, bias=True)
         self.init_weight()
 
     def forward(self,x, H, W):
@@ -152,12 +193,12 @@ class FPNOutput(nn.Module):
     def init_weight(self):
         for ly in self.children():
             if isinstance(ly, nn.Conv2d):
-                nn.init.kaiming_normal_(ly.weight, a=1)
+                nn.init.kaiming_normal_(ly.weight, a=1e-2)
                 if not ly.bias is None: nn.init.constant_(ly.bias, 0)
 
-class FANet18_v1(nn.Module):
+class FANet18_v1_c1(nn.Module):
     def __init__(self, n_classes=2, backbone='resnet18', aux_output=False, export=False):
-        super(FANet18_v1, self).__init__()
+        super(FANet18_v1_c1, self).__init__()
 
         self._up_kwargs = up_kwargs
         self.nclass = n_classes
@@ -171,6 +212,10 @@ class FANet18_v1(nn.Module):
         self.fam_32 = FastAttModule(in_chan=256, mid_chn=256, out_chan=128)
         self.fam_16 = FastAttModule(in_chan=128, mid_chn=256, out_chan=128)
         self.fam_8 = FastAttModule(in_chan=64, mid_chn=256, out_chan=128)
+
+        # self.smfeat_32_up = nn.Upsample(scale_factor=4, mode='bilinear', align_corners=True)
+
+        self.featurefusion = FeatureFusionModel(256, 256)
 
         self.clslayer = FPNOutput(256, 256, n_classes)
         if self.aux_output:
@@ -189,7 +234,13 @@ class FANet18_v1(nn.Module):
         upfeat_16 = self.fam_16(feat16, upfeat_32, True, False)
         smfeat_8 = self.fam_8(feat8, upfeat_16, False, True)
 
+        # smfeat_32_up = self.smfeat_32_up(smfeat_32)
+        # x = torch.cat([smfeat_8, smfeat_32_up], dim=1)
         x = self._upsample_cat(smfeat_32, smfeat_8)
+        x = self.featurefusion(x)
+
+
+
 
         if self.aux_output:
             aux0 = self.aux0(smfeat_64, H, W)
@@ -224,7 +275,7 @@ class FANet18_v1(nn.Module):
     def init_weight(self):
         for ly in self.children():
             if isinstance(ly, nn.Conv2d):
-                nn.init.kaiming_normal_(ly.weight, a=1)
+                nn.init.kaiming_normal_(ly.weight, a=1e-2)
                 if not ly.bias is None: nn.init.constant_(ly.bias, 0)
 
 def count_parameters(model):
@@ -240,7 +291,7 @@ def count_parameters(model):
     return total_params
 
 if __name__ == "__main__":
-    net = FANet18_v1(2).cuda()
+    net = FANet18_v1_c1(2).cuda()
     x = torch.randn(1, 3, 480, 640).cuda()
     net.eval()
     net.init_weight()
