@@ -4,7 +4,7 @@ cfg = dict(
     num_aux_heads=2,
     aux_output=False,
     lr_start=1e-2,
-    lr_multiplier=1,
+    lr_multiplier=10,
     weight_decay=5e-4,
     warmup_iters=100,
     max_iter=15000,
@@ -18,5 +18,5 @@ cfg = dict(
     use_sync_bn=False,
     respth='./res',
     categories=3,
-    save_name='fanet18_v4_se2_c1.pth',
+    save_name='fanet18_v4_se2_c1_2.pth',
     )

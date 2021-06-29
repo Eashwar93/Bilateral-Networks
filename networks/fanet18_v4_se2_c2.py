@@ -187,12 +187,14 @@ class FPNOutput(nn.Module):
     def __init__(self, in_chan, mid_chan, n_classes, *args, **kwargs):
         super(FPNOutput, self).__init__()
         self._up_kwargs=up_kwargs
-        self.conv = ConvBNReLU(in_chan=in_chan, out_chan=mid_chan, ks=3, padding=1, activation='leaky_relu')
-        self.conv_out = nn.Conv2d(mid_chan, n_classes, kernel_size=3, padding=1, bias=False)
+        self.conv1 = ConvBNReLU(in_chan=in_chan, out_chan=in_chan, ks=3, padding=1, activation='leaky_relu')
+        self.conv2 = ConvBNReLU(in_chan=in_chan, out_chan=mid_chan, ks=3, padding=1, activation='leaky_relu')
+        self.conv_out = nn.Conv2d(mid_chan, n_classes, kernel_size=1, bias=False)
         self.init_weight()
 
     def forward(self,x, H, W):
-        x = self.conv(x)
+        x = self.conv1(x)
+        x = self.conv2(x)
         x = self.conv_out(x)
         x1 = F.interpolate(x, (H, W), **self._up_kwargs)
         return x1
@@ -214,9 +216,9 @@ class FPNOutput(nn.Module):
                 nn.init.kaiming_normal_(ly.weight, a=1)
                 if not ly.bias is None: nn.init.constant_(ly.bias, 0)
 
-class FANet18_v4_se2_c1(nn.Module):
+class FANet18_v4_se2_c2(nn.Module):
     def __init__(self, n_classes=2, backbone='resnet18', aux_output=False, export=False):
-        super(FANet18_v4_se2_c1, self).__init__()
+        super(FANet18_v4_se2_c2, self).__init__()
 
         self._up_kwargs = up_kwargs
         self.nclass = n_classes
@@ -300,7 +302,7 @@ def count_parameters(model):
     return total_params
 
 if __name__ == "__main__":
-    net = FANet18_v4_se2_c1(2).cuda()
+    net = FANet18_v4_se2_c2(2).cuda()
     x = torch.randn(1, 3, 480, 640).cuda()
     net.eval()
     net.init_weight()

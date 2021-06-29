@@ -1,6 +1,6 @@
-# bisenet v1
+# fanet_custom
 cfg = dict(
-    model_type='fanet18_v1_c1',
+    model_type='fanet18_v4_se2_c2',
     num_aux_heads=2,
     aux_output=False,
     lr_start=1e-2,
@@ -13,10 +13,10 @@ cfg = dict(
     val_im_anns='./datasets/Rexroth/test.txt',
     scales=[0.5, 2.0],
     cropsize=[480, 640],
-    ims_per_gpu=16,
+    ims_per_gpu=13,
     use_fp16=True,
     use_sync_bn=False,
     respth='./res',
     categories=3,
-    save_name='fanet18_v1_c1.pth',
+    save_name='fanet18_v4_se2_c2.pth',
     )

@@ -12,6 +12,7 @@ from .fanet18_v1_se3 import FANet18_v1_se3
 from .fanet18_v4_se1 import FANet18_v4_se1
 from .fanet18_v4_se2 import FANet18_v4_se2
 from .fanet18_v4_se2_c1 import FANet18_v4_se2_c1
+from .fanet18_v4_se2_c2 import FANet18_v4_se2_c2
 
 
 model_factory = {
@@ -27,4 +28,5 @@ model_factory = {
     'fanet18_v4_se1': FANet18_v4_se1,
     'fanet18_v4_se2': FANet18_v4_se2,
     'fanet18_v4_se2_c1': FANet18_v4_se2_c1,
+    'fanet18_v4_se2_c2': FANet18_v4_se2_c2,
 }
