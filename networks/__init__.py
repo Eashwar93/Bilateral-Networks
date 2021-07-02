@@ -1,6 +1,11 @@
 
 
 from .bisenetv1 import BiSeNetV1
+from .bisenet_v1_g1 import BiSeNetV1_g1
+from .bisenet_v1_g2 import BiSeNetV1_g2
+from .bisenet_v1_g3 import BiSeNetV1_g3
+from .bisenet_v1_g4 import BiSeNetV1_g4
+from .bisenet_v1_g5 import BiSeNetV1_g5
 from .fanet18_v1 import FANet18_v1
 from .fanet18_v2 import FANet18_v2
 from .fanet18_v3 import FANet18_v3
@@ -17,6 +22,11 @@ from .fanet18_v4_se2_c2 import FANet18_v4_se2_c2
 
 model_factory = {
     'bisenetv1': BiSeNetV1,
+    'bisenet_v1_g1': BiSeNetV1_g1,
+    'bisenet_v1_g2': BiSeNetV1_g2,
+    'bisenet_v1_g3': BiSeNetV1_g3,
+    'bisenet_v1_g4': BiSeNetV1_g4,
+    'bisenet_v1_g5': BiSeNetV1_g5,
     'fanet18_v1': FANet18_v1,
     'fanet18_v2': FANet18_v2,
     'fanet18_v3': FANet18_v3,

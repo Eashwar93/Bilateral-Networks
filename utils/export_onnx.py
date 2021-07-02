@@ -10,9 +10,9 @@ from configs import cfg_factory
 torch.set_grad_enabled(False)
 
 parse = argparse.ArgumentParser()
-parse.add_argument('--model', dest='model', type=str, default='fanet18_v1',)
-parse.add_argument('--weight-path', dest='weight_pth', type=str, default='./res/fanet18_v1.pth')
-parse.add_argument('--outpath', dest='out_pth', type=str, default='./res/fanet18_v4_se2.onnx')
+parse.add_argument('--model', dest='model', type=str, default='bisenetv1',)
+parse.add_argument('--weight-path', dest='weight_pth', type=str, default='./res/bisenet_v1.pth')
+parse.add_argument('--outpath', dest='out_pth', type=str, default='./res/bisenetv1.onnx')
 args = parse.parse_args()
 
 cfg = cfg_factory[args.model]

@@ -2,26 +2,27 @@
 
 import torch
 import torch.nn as nn
-import torch.utils.model_zoo as modelzoo
 
 
+from prettytable import PrettyTable
 from ptflops import get_model_complexity_info
 import time
 
-resnet18_url = 'https://download.pytorch.org/models/resnet18-5c106cde.pth'
+
 
 from torch.nn import BatchNorm2d
 
-def conv3x3(in_planes, out_planes, stride=1):
-       return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=False)
+def conv3x3(in_planes, out_planes, stride=1, groups=1):
+       return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=False, groups=groups)
 
 class BasicBlock(nn.Module):
-    def __init__(self, in_chan, out_chan, stride=1):
+    def __init__(self, in_chan, out_chan, stride=1, num_group=32):
         super(BasicBlock, self).__init__()
         self.conv1 = conv3x3(in_chan, out_chan, stride)
         self.bn1 = BatchNorm2d(out_chan)
-        self.conv2 = conv3x3(out_chan, out_chan)
+        self.conv2 = conv3x3(out_chan, out_chan, groups=num_group)
         self.bn2 = BatchNorm2d(out_chan)
+        self.mix = nn.Conv2d(in_channels=out_chan, out_channels=out_chan, kernel_size=1, stride=1, bias=False)
         self.relu = nn.ReLU(inplace=True)
         self.downsample = None
         if in_chan != out_chan or stride != 1:
@@ -35,6 +36,8 @@ class BasicBlock(nn.Module):
         residual = self.relu(residual)
         residual = self.conv2(residual)
         residual = self.bn2(residual)
+        residual = self.relu(residual)
+        residual = self.mix(residual)
 
         shortcut = x
         if self.downsample is not None:
@@ -45,14 +48,25 @@ class BasicBlock(nn.Module):
         return out
 
 def create_layer_basic(in_chan, out_chan, bnum, stride=1):
-    layers = [BasicBlock(in_chan, out_chan, stride=stride)]
+    layers = [BasicBlock(in_chan, out_chan, stride=stride, num_group=8)]  ##################
     for i in range (bnum-1):
-        layers.append(BasicBlock(out_chan, out_chan, stride=1))
+        layers.append(BasicBlock(out_chan, out_chan, stride=1, num_group=8)) ################
     return nn.Sequential(*layers)
 
-class Resnet18(nn.Module):
+def count_parameters(model):
+    table = PrettyTable(["Modules", "Parameters"])
+    total_params = 0
+    for name, parameter in model.named_parameters():
+        if not parameter.requires_grad: continue
+        param = parameter.numel()
+        table.add_row([name, param])
+        total_params+=param
+    print(table)
+    print(f"Total Trainable Params: {total_params}")
+
+class ResneXt18_mix(nn.Module):
     def __init__(self):
-        super(Resnet18, self).__init__()
+        super(ResneXt18_mix, self).__init__()
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
@@ -76,12 +90,10 @@ class Resnet18(nn.Module):
         return feat8, feat16, feat32
 
     def init_weight(self):
-        state_dict = modelzoo.load_url(resnet18_url)
-        self_state_dict = self.state_dict()
-        for k,v in state_dict.items():
-            if 'fc' in k: continue
-            self_state_dict.update({k: v})
-        self.load_state_dict(self_state_dict)
+        for ly in self.children():
+            if isinstance(ly, nn.Conv2d):
+                nn.init.kaiming_normal_(ly.weight, a=1)
+                if not ly.bias is None: nn.init.constant_(ly.bias, 0)
 
     def get_params(self):
         wd_params, nowd_params = [], []
@@ -96,7 +108,7 @@ class Resnet18(nn.Module):
 
 
 if __name__ == "__main__":
-    net = Resnet18().cuda()
+    net = ResneXt18_mix().cuda()
     x = torch.randn(1, 3, 480, 640).cuda()
     net.eval()
     net.init_weight()
@@ -119,6 +131,7 @@ if __name__ == "__main__":
     print("Output size 8: ", out8.size())
     print("Output size 16: ", out16.size())
     print("Output size 32: ", out32.size())
+    count_parameters(net)
 
 
 

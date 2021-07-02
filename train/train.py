@@ -50,7 +50,7 @@ def parse_args():
     parse = argparse.ArgumentParser()
     parse.add_argument('--local_rank', dest='local_rank', type=int, default=-1,)
     parse.add_argument('--port', dest='port', type=int, default=44554,)
-    parse.add_argument('--model', dest='model', type=str, default='fanet18_v4_se2_c2')
+    parse.add_argument('--model', dest='model', type=str, default='bisenet_v1_g1')
     parse.add_argument('--finetune-from', type=str, default=None,)
     return parse.parse_args()
 
