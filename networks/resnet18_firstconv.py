@@ -50,30 +50,30 @@ def create_layer_basic(in_chan, out_chan, bnum, stride=1):
         layers.append(BasicBlock(out_chan, out_chan, stride=1))
     return nn.Sequential(*layers)
 
-class Resnet18(nn.Module):
+class Resnet18_first(nn.Module):
     def __init__(self):
-        super(Resnet18, self).__init__()
+        super(Resnet18_first, self).__init__()
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = create_layer_basic(64, 64, bnum=2, stride=1)
-        self.layer2 = create_layer_basic(64, 128, bnum=2, stride=2)
-        self.layer3 = create_layer_basic(128,256, bnum=2, stride=2)
-        self.layer4 = create_layer_basic(256, 512, bnum=2, stride=2)
+        # self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        # self.layer1 = create_layer_basic(64, 64, bnum=2, stride=1)
+        # self.layer2 = create_layer_basic(64, 128, bnum=2, stride=2)
+        # self.layer3 = create_layer_basic(128,256, bnum=2, stride=2)
+        # self.layer4 = create_layer_basic(256, 512, bnum=2, stride=2)
         self.init_weight()
 
     def forward(self, x):
         first_conv = self.conv1(x)
         first_conv = self.bn1(first_conv)
         first_conv = self.relu(first_conv)
-        x = self.maxpool(first_conv)
-
-        x = self.layer1(x)
-        feat8 = self.layer2(x)
-        feat16 = self.layer3(feat8)
-        feat32 = self.layer4(feat16)
-        return first_conv, feat8, feat16, feat32
+        # x = self.maxpool(x)
+        #
+        # x = self.layer1(x)
+        # feat8 = self.layer2(x)
+        # feat16 = self.layer3(feat8)
+        # feat32 = self.layer4(feat16)
+        return first_conv
 
     def init_weight(self):
         state_dict = modelzoo.load_url(resnet18_url)
@@ -81,7 +81,7 @@ class Resnet18(nn.Module):
         for k,v in state_dict.items():
             if 'fc' in k: continue
             self_state_dict.update({k: v})
-        self.load_state_dict(self_state_dict)
+        self.load_state_dict(self_state_dict,strict=False)
 
     def get_params(self):
         wd_params, nowd_params = [], []
@@ -96,17 +96,17 @@ class Resnet18(nn.Module):
 
 
 if __name__ == "__main__":
-    net = Resnet18().cuda()
+    net = Resnet18_first().cuda()
     x = torch.randn(1, 3, 480, 640).cuda()
     net.eval()
     net.init_weight()
     with torch.no_grad():
         torch.cuda.synchronize()
-        _,out8,out16,out32 = net(x)
+        first_conv = net(x)
         torch.cuda.synchronize()
         start_ts = time.time()
         for i in range(100):
-            _, out8, out16, out32,  = net(x)
+            first_conv  = net(x)
         torch.cuda.synchronize()
         end_ts = time.time()
         t_diff = end_ts-start_ts
@@ -115,10 +115,9 @@ if __name__ == "__main__":
                                              print_per_layer_stat=False, verbose=False)
     print('{:<30}  {:<8}'.format('Computational complexity: ', macs))
     print('{:<30}  {:<8}'.format('Number of parameters: ', params))
-    _, out8, out16, out32 = net(x)
-    print("Output size 8: ", out8.size())
-    print("Output size 16: ", out16.size())
-    print("Output size 32: ", out32.size())
+    first_conv = net(x)
+    print("Output size 2: ", first_conv.size())
+
 
 
 

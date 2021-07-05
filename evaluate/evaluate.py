@@ -64,7 +64,7 @@ class MscEvalV0(object):
             dist.all_reduce(hist, dist.ReduceOp.SUM)
         ious = hist.diag() / (hist.sum(dim=0) + hist.sum(dim=1) - hist.diag())
         miou = ious.mean()
-        return miou.item()
+        return miou.item(), ious.cpu().detach().numpy()
 
 
 class MscEvalCrop(object):
@@ -156,7 +156,7 @@ class MscEvalCrop(object):
             dist.all_reduce(hist, dist.ReduceOp.SUM)
         ious = hist.diag() / (hist.sum(dim=0) + hist.sum(dim=1) - hist.diag())
         miou = ious.mean()
-        return miou.item()
+        return miou.item(), ious.cpu().detach().numpy()
 
 @torch.no_grad()
 def eval_model(net, ims_per_gpu, im_root, im_anns, cfg):
@@ -168,28 +168,36 @@ def eval_model(net, ims_per_gpu, im_root, im_anns, cfg):
     logger = logging.getLogger()
 
     single_scale = MscEvalV0((1., ), False)
-    mIOU = single_scale(net, dl, cfg.categories)
+    mIOU, ious = single_scale(net, dl, cfg.categories)
     heads.append('single-scale')
     mious.append(mIOU)
     logger.info('single-scale mIOU is: %s\n', mIOU)
+    for i in range(cfg.categories):
+        logger.info('Class'+str(i) +' SS IoU is: %s\n', str(ious[i]))
 
     single_crop = MscEvalCrop(cropsize=(480,640), cropstride=2./3, flip=False, scales=(0.5, 0.75, 1.0, 1.5, 1.75), lb_ignore=255)
-    mIOU = single_crop(net, dl, cfg.categories)
+    mIOU, ious = single_crop(net, dl, cfg.categories)
     heads.append('multi-scale_single_crop')
     mious.append(mIOU)
     logger.info('multi-scale_single_crop mIOU is :%s\n', mIOU)
+    for i in range(cfg.categories):
+        logger.info('Class'+str(i) +' MSSC IoU is: %s\n', str(ious[i]))
 
     ms_flip = MscEvalV0((1.0, ), True)#############
-    mIOU = ms_flip(net, dl, cfg.categories)
+    mIOU, ious = ms_flip(net, dl, cfg.categories)
     heads.append('multi_crop_flip')
     mious.append(mIOU)
     logger.info('multi-crop_flip mIOU is: %s\n', mIOU)
+    for i in range(cfg.categories):
+        logger.info('Class'+str(i) +' MCF IoU is: %s\n', str(ious[i]))
 
     msc_flip_crop = MscEvalCrop(cropsize=(480,640), cropstride=2./3, flip=True, scales=(0.5, 0.75, 1.0, 1.5, 1.75), lb_ignore=255)
-    mIOU = msc_flip_crop(net, dl, cfg.categories)
+    mIOU, ious = msc_flip_crop(net, dl, cfg.categories)
     heads.append('multi-scale_flip_crop')
     mious.append(mIOU)
     logger.info('multi-scale_flip_crop mIOU is: %s\n', mIOU)
+    for i in range(cfg.categories):
+        logger.info('Class'+str(i) +' MSFC IoU is: %s\n', str(ious[i]))
     return heads, mious
 
 
@@ -214,9 +222,9 @@ def evaluate(cfg, weight_pth):
 def parse_args():
     parse = argparse.ArgumentParser()
     parse.add_argument('--local_rank', dest='local_rank', type=int, default=-1, )
-    parse.add_argument('--weight-path', dest='weight_path', type=str, default='./res/fanet18_v4_se2_c1.pth')
+    parse.add_argument('--weight-path', dest='weight_path', type=str, default='./res/bisenet_v1.pth')
     parse.add_argument('--port', dest='port', type=int, default=44553, )
-    parse.add_argument('--model', dest='model', type=str, default='fanet18_v4_se2_c1')
+    parse.add_argument('--model', dest='model', type=str, default='bisenetv1')
     return parse.parse_args()
 
 

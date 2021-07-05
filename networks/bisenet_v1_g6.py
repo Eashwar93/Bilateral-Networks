@@ -5,10 +5,9 @@ import torch
 import torch.nn as nn
 
 
-from .resnet import Resnet18
+from resnet import Resnet18
 
 from torch.nn import BatchNorm2d
-
 
 from prettytable import PrettyTable
 from ptflops import get_model_complexity_info
@@ -18,26 +17,6 @@ class ConvBNRelu(nn.Module):
     def __init__(self, in_chan, out_chan, ks=3, stride =1, padding=1, *args, **kwargs):
         super(ConvBNRelu, self).__init__()
         self.conv = nn.Conv2d(in_chan, out_chan, kernel_size=ks, stride=stride, padding=padding, bias=False)
-        self.bn = BatchNorm2d(out_chan)
-        self.relu = nn.ReLU(inplace=True)
-        self.init_weight()
-
-    def forward(self, x):
-        x = self.conv(x)
-        x = self.bn(x)
-        x = self.relu(x)
-        return x
-
-    def init_weight(self):
-        for ly in self.children():
-            if isinstance(ly, nn.Conv2d):
-                nn.init.kaiming_normal_(ly.weight, a=1)
-                if not ly.bias is None: nn.init.constant_(ly.bias, 0)
-
-class GConvBNRelu(nn.Module):
-    def __init__(self, in_chan, out_chan, ks=3, stride =1, padding=1, *args, **kwargs):
-        super(GConvBNRelu, self).__init__()
-        self.conv = nn.Conv2d(in_chan, out_chan, kernel_size=ks, stride=stride, padding=padding, bias=False, groups=32)
         self.bn = BatchNorm2d(out_chan)
         self.relu = nn.ReLU(inplace=True)
         self.init_weight()
@@ -129,69 +108,18 @@ class AttentionRefinementModule(nn.Module):
                 nn.init.kaiming_normal_(ly.weight, a=1)
                 if not ly.bias is None: nn.init.constant_(ly.bias, 0)
 
-class ContextPath(nn.Module):
-    def __init__(self, *args, **kwargs):
-        super(ContextPath, self).__init__()
-        self.resnet = Resnet18()
-        self.arm16 = AttentionRefinementModule(256,128)
-        self.arm32 = AttentionRefinementModule(512,128)
-        self.conv_head32 = ConvBNRelu(128, 128, ks=3, stride=1, padding=1)
-        self.conv_head16 = ConvBNRelu(128, 128, ks=3, stride=1, padding=1)
-        self.conv_avg = ConvBNRelu(512, 128, ks=1, stride=1, padding=0)
-        self.up32 = nn.Upsample(scale_factor=2.)
-        self.up16 = nn.Upsample(scale_factor=2.)
-
-        self.init_weight()
-
-    def forward(self, x):
-        first_conv, feat8, feat16, feat32 = self.resnet(x)
-
-        avg = torch.mean(feat32, dim=(2,3), keepdim=True)
-        avg = self.conv_avg(avg)
-
-        feat32_arm = self.arm32(feat32)
-        feat32_sum = feat32_arm+avg
-        feat32_up = self.up32(feat32_sum)
-        feat32_up = self.conv_head32(feat32_up)
-
-        feat16_arm = self.arm16(feat16)
-        feat16_sum = feat16_arm+feat32_up
-        feat16_up = self.up16(feat16_sum)
-        feat16_up = self.conv_head16(feat16_up)
-
-        return feat16_up, feat32_up  #feat16_up is 8 times downsampled features, feat32_up is 16 times downsampled features
-
-    def init_weight(self):
-        for ly in self.children():
-            if isinstance(ly, nn.Conv2d):
-                nn.init.kaiming_normal_(ly.weight, a=1)
-                if not ly.bias is None: nn.init.constant_(ly.bias, 0)
-
-    def get_params(self):
-        wd_params, nowd_params = [], []
-        for name, module in self.named_modules():
-            if isinstance(module, (nn.Linear, nn.Conv2d)):
-                wd_params.append(module.weight)
-                if not module.bias is None:
-                    nowd_params.append(module.weight)
-            elif isinstance(module, nn.modules.batchnorm._BatchNorm):
-                nowd_params += list(module.parameters())
-        return wd_params, nowd_params
 
 class SpatialPath(nn.Module):
     def __init__(self, *args, **kwargs):
         super(SpatialPath, self).__init__()
-        self.conv1 = ConvBNRelu(in_chan=3, out_chan=64, ks=7, stride=2, padding=3)
-        self.conv2 = GConvBNRelu(in_chan=64, out_chan=128, ks=3, stride=2, padding=1)
-        self.gather1 = ConvBNRelu(in_chan=128,out_chan=64,ks=1,stride=1,padding=0)
-        self.conv3 = GConvBNRelu(in_chan=64, out_chan=128, ks=3, stride=2, padding=1)
-        self.conv_out = ConvBNRelu(in_chan=128, out_chan=128, ks=1, stride=1, padding=0)
+        # self.conv1 = ConvBNRelu(3, 64, ks=7, stride=2, padding=3)
+        self.conv2 = ConvBNRelu(64, 64, ks=3, stride=2, padding=1)
+        self.conv3 = ConvBNRelu(64, 64, ks=3, stride=2, padding=1)
+        self.conv_out = ConvBNRelu(64, 128, ks=1, stride=1, padding=0)
         self.init_weight()
 
     def forward(self, x):
-        feat = self.conv1(x)
-        feat = self.conv2(feat)
-        feat = self.gather1(feat)
+        feat = self.conv2(x)
         feat = self.conv3(feat)
         feat = self.conv_out(feat)
         return feat
@@ -212,6 +140,60 @@ class SpatialPath(nn.Module):
             elif isinstance(module, nn.modules.batchnorm._BatchNorm):
                 nowd_params += list(module.parameters())
         return wd_params, nowd_params
+
+class ContextPath(nn.Module):
+    def __init__(self, *args, **kwargs):
+        super(ContextPath, self).__init__()
+        self.resnet = Resnet18()
+        self.sp = SpatialPath()
+        self.arm16 = AttentionRefinementModule(256,128)
+        self.arm32 = AttentionRefinementModule(512,128)
+        self.conv_head32 = ConvBNRelu(128, 128, ks=3, stride=1, padding=1)
+        self.conv_head16 = ConvBNRelu(128, 128, ks=3, stride=1, padding=1)
+        self.conv_avg = ConvBNRelu(512, 128, ks=1, stride=1, padding=0)
+        self.up32 = nn.Upsample(scale_factor=2.)
+        self.up16 = nn.Upsample(scale_factor=2.)
+
+        self.init_weight()
+
+    def forward(self, x):
+        first_conv, feat8, feat16, feat32 = self.resnet(x)
+
+        fsp = self.sp(first_conv)
+
+        avg = torch.mean(feat32, dim=(2,3), keepdim=True)
+        avg = self.conv_avg(avg)
+
+        feat32_arm = self.arm32(feat32)
+        feat32_sum = feat32_arm+avg
+        feat32_up = self.up32(feat32_sum)
+        feat32_up = self.conv_head32(feat32_up)
+
+        feat16_arm = self.arm16(feat16)
+        feat16_sum = feat16_arm+feat32_up
+        feat16_up = self.up16(feat16_sum)
+        feat16_up = self.conv_head16(feat16_up)
+
+        return fsp, feat16_up, feat32_up  #feat16_up is 8 times downsampled features, feat32_up is 16 times downsampled features
+
+    def init_weight(self):
+        for ly in self.children():
+            if isinstance(ly, nn.Conv2d):
+                nn.init.kaiming_normal_(ly.weight, a=1)
+                if not ly.bias is None: nn.init.constant_(ly.bias, 0)
+
+    def get_params(self):
+        wd_params, nowd_params = [], []
+        for name, module in self.named_modules():
+            if isinstance(module, (nn.Linear, nn.Conv2d)):
+                wd_params.append(module.weight)
+                if not module.bias is None:
+                    nowd_params.append(module.weight)
+            elif isinstance(module, nn.modules.batchnorm._BatchNorm):
+                nowd_params += list(module.parameters())
+        return wd_params, nowd_params
+
+
 
 
 class FeatureFusionModel(nn.Module):
@@ -253,12 +235,11 @@ class FeatureFusionModel(nn.Module):
                 nowd_params += list(module.parameters())
         return wd_params, nowd_params
 
-class BiSeNetV1_g1(nn.Module):
+class BiSeNetV1(nn.Module):
 
     def __init__(self, n_classes, aux_output=True, export=False, *args, **kwargs):
-        super(BiSeNetV1_g1, self).__init__()
+        super(BiSeNetV1, self).__init__()
         self.cp = ContextPath()
-        self.sp = SpatialPath()
         self.ffm = FeatureFusionModel(256, 256)
         self.conv_out = BiseNetOutput(256, 256, n_classes, up_factor=8)
         self.aux_output = aux_output
@@ -270,8 +251,8 @@ class BiSeNetV1_g1(nn.Module):
 
     def forward(self, x):
         H, W = x.size()[2:]
-        feat_cp8, feat_cp16 = self.cp(x)
-        feat_sp = self.sp(x)
+        feat_sp,feat_cp8, feat_cp16 = self.cp(x)
+
         feat_fuse = self.ffm(feat_sp, feat_cp8)
 
         feat_out = self.conv_out(feat_fuse)
@@ -315,7 +296,7 @@ def count_parameters(model):
     return total_params
 
 if __name__ == "__main__":
-    net = BiSeNetV1_g1(2, False).cuda()
+    net = BiSeNetV1(2, False).cuda()
     x = torch.randn(1, 3, 480, 640).cuda()
     net.eval()
     net.init_weight()

@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 
 
-from .resnet import Resnet18
+from resnet import Resnet18
 
 from torch.nn import BatchNorm2d
 
@@ -123,7 +123,7 @@ class ContextPath(nn.Module):
         self.init_weight()
 
     def forward(self, x):
-        feat8, feat16, feat32 = self.resnet(x)
+        _, feat8, feat16, feat32 = self.resnet(x)
 
         avg = torch.mean(feat32, dim=(2,3), keepdim=True)
         avg = self.conv_avg(avg)
