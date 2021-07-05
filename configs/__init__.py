@@ -4,6 +4,8 @@ from .bisenet_v1_g2 import cfg as bisenet_v1_g2_cfg
 from .bisenet_v1_g3 import cfg as bisenet_v1_g3_cfg
 from .bisenet_v1_g4 import cfg as bisenet_v1_g4_cfg
 from .bisenet_v1_g5 import cfg as bisenet_v1_g5_cfg
+from .bisenet_v1_g6 import cfg as bisenet_v1_g6_cfg
+from .bisenet_v1_g7 import cfg as bisenet_v1_g7_cfg
 from .bisenetv2 import cfg as bisenetv2_cfg
 from .fanet18_v1 import cfg as fanet18_v1_cfg
 from .fanet18_v2 import cfg as fanet18_v2_cfg
@@ -30,6 +32,8 @@ cfg_factory = dict(
     bisenet_v1_g3=cfg_dict(bisenet_v1_g3_cfg),
     bisenet_v1_g4=cfg_dict(bisenet_v1_g4_cfg),
     bisenet_v1_g5=cfg_dict(bisenet_v1_g5_cfg),
+    bisenet_v1_g6=cfg_dict(bisenet_v1_g6_cfg),
+    bisenet_v1_g7=cfg_dict(bisenet_v1_g7_cfg),
     bisenetv2=cfg_dict(bisenetv2_cfg),
     fanet18_v1=cfg_dict(fanet18_v1_cfg),
     fanet18_v2=cfg_dict(fanet18_v2_cfg),

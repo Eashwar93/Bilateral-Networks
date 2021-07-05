@@ -244,10 +244,10 @@ class FeatureFusionModel(nn.Module):
                 nowd_params += list(module.parameters())
         return wd_params, nowd_params
 
-class BiSeNetV1(nn.Module):
+class BiSeNetV1_g7(nn.Module):
 
     def __init__(self, n_classes, aux_output=True, export=False, *args, **kwargs):
-        super(BiSeNetV1, self).__init__()
+        super(BiSeNetV1_g7, self).__init__()
         self.fc = FirstConv()
         self.cp = ContextPath()
         self.sp = SpatialPath()
@@ -309,7 +309,7 @@ def count_parameters(model):
     return total_params
 
 if __name__ == "__main__":
-    net = BiSeNetV1(2, False).cuda()
+    net = BiSeNetV1_g7(2, False).cuda()
     x = torch.randn(1, 3, 480, 640).cuda()
     net.eval()
     net.init_weight()
