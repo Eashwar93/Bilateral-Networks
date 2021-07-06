@@ -1,6 +1,6 @@
 # bisenet v1
 cfg = dict(
-    model_type='bisenet_v1_g56',
+    model_type='bisenet_v1_g6',
     num_aux_heads=2,
     aux_output=True,
     lr_start=1e-2,

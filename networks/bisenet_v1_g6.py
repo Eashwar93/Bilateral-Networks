@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 
 
-from resnet import Resnet18
+from .resnet import Resnet18
 
 from torch.nn import BatchNorm2d
 

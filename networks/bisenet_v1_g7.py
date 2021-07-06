@@ -5,8 +5,8 @@ import torch
 import torch.nn as nn
 
 
-from resnet18_nofirst import Resnet18_nofirst
-from resnet18_firstconv import Resnet18_first
+from .resnet18_nofirst import Resnet18_nofirst
+from .resnet18_firstconv import Resnet18_first
 
 from torch.nn import BatchNorm2d
 
@@ -117,6 +117,17 @@ class FirstConv(nn.Module):
     def forward(self, x):
         feat = self.firstconv(x)
         return feat
+
+    def get_params(self):
+        wd_params, nowd_params = [], []
+        for name, module in self.named_modules():
+            if isinstance(module, (nn.Linear, nn.Conv2d)):
+                wd_params.append(module.weight)
+                if not module.bias is None:
+                    nowd_params.append(module.bias)
+            elif isinstance(module, nn.modules.batchnorm._BatchNorm):
+                nowd_params += list(module.parameters())
+        return wd_params, nowd_params
 
 class SpatialPath(nn.Module):
     def __init__(self, *args, **kwargs):
