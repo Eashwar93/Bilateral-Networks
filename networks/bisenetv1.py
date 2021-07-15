@@ -138,7 +138,7 @@ class ContextPath(nn.Module):
         feat16_up = self.up16(feat16_sum)
         feat16_up = self.conv_head16(feat16_up)
 
-        return feat16_up, feat32_up  #feat16_up is 8 times downsampled features, feat32_up is 16 times downsampled features
+        return feat16_up, feat32_up
 
     def init_weight(self):
         for ly in self.children():
