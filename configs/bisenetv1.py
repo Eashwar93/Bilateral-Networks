@@ -7,7 +7,7 @@ cfg = dict(
     lr_multiplier=10,
     weight_decay=5e-4,
     warmup_iters=200,
-    max_iter=6400,
+    max_iter=12000,
     im_root='./datasets/Rexroth',
     train_im_anns='./datasets/Rexroth/train.txt',
     val_im_anns='./datasets/Rexroth/eval.txt',
@@ -17,6 +17,6 @@ cfg = dict(
     use_fp16=True,
     use_sync_bn=False,
     respth='./res',
-    categories=3,
-    save_name='bisenet_v1.pth',
+    categories=4,
+    save_name='bisenet_v1_fulldata.pth',
     )

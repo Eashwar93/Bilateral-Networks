@@ -37,7 +37,7 @@ class ConvBNRelu(nn.Module):
 class GConvBNRelu(nn.Module):
     def __init__(self, in_chan, out_chan, ks=3, stride =1, padding=1, *args, **kwargs):
         super(GConvBNRelu, self).__init__()
-        self.conv = nn.Conv2d(in_chan, out_chan, kernel_size=ks, stride=stride, padding=padding, bias=False, groups=32)
+        self.conv = nn.Conv2d(in_chan, out_chan, kernel_size=ks, stride=stride, padding=padding, bias=False, groups=16)
         self.bn = BatchNorm2d(out_chan)
         self.relu = nn.ReLU(inplace=True)
         self.init_weight()
@@ -185,7 +185,8 @@ class SpatialPath(nn.Module):
         self.conv2 = GConvBNRelu(in_chan=64, out_chan=128, ks=3, stride=2, padding=1)
         self.gather1 = ConvBNRelu(in_chan=128,out_chan=64,ks=1,stride=1,padding=0)
         self.conv3 = GConvBNRelu(in_chan=64, out_chan=128, ks=3, stride=2, padding=1)
-        self.conv_out = ConvBNRelu(in_chan=128, out_chan=128, ks=1, stride=1, padding=0)
+        self.gather2 = ConvBNRelu(in_chan=128, out_chan=64, ks=1, stride=1, padding=0)
+        self.conv_out = ConvBNRelu(in_chan=64, out_chan=128, ks=1, stride=1, padding=0)
         self.init_weight()
 
     def forward(self, x):
@@ -193,6 +194,7 @@ class SpatialPath(nn.Module):
         feat = self.conv2(feat)
         feat = self.gather1(feat)
         feat = self.conv3(feat)
+        feat = self.gather2(feat)
         feat = self.conv_out(feat)
         return feat
 

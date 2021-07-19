@@ -222,9 +222,9 @@ def evaluate(cfg, weight_pth):
 def parse_args():
     parse = argparse.ArgumentParser()
     parse.add_argument('--local_rank', dest='local_rank', type=int, default=-1, )
-    parse.add_argument('--weight-path', dest='weight_path', type=str, default='./res/bisenet_v1.pth')
+    parse.add_argument('--weight-path', dest='weight_path', type=str, default='./res/bisenet_v1_g6_fulldata.pth')
     parse.add_argument('--port', dest='port', type=int, default=44553, )
-    parse.add_argument('--model', dest='model', type=str, default='bisenetv1')
+    parse.add_argument('--model', dest='model', type=str, default='bisenet_v1_g6')
     return parse.parse_args()
 
 
