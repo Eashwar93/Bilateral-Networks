@@ -15,8 +15,8 @@ torch.set_grad_enabled(False)
 np.random.seed(123)
 
 parse = argparse.ArgumentParser()
-parse.add_argument('--model', dest='model', type=str, default='bisenetv1',)
-parse.add_argument('--weight-path', dest='weight_path', type=str, default='./res/bisenet_v1_fulldata.pth',)
+parse.add_argument('--model', dest='model', type=str, default='bisenet_v1_g6',)
+parse.add_argument('--weight-path', dest='weight_path', type=str, default='./res/bisenet_v1_g6_fulldata.pth',)
 parse.add_argument('--img-path', dest='img_path', type=str, default='./2630.png',)
 args = parse.parse_args()
 cfg = cfg_factory[args.model]
@@ -39,4 +39,4 @@ out = net(im)
 print(out.shape)
 out = out.argmax(dim=1).squeeze().detach().cpu().numpy()
 pred = palette[out]
-cv2.imwrite('./bisenetv1_2630.png', pred)
+cv2.imwrite('./bisenet_v1_g6_2630.png', pred)
