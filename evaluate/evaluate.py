@@ -168,37 +168,37 @@ def eval_model(net, ims_per_gpu, im_root, im_anns, cfg):
     logger = logging.getLogger()
 
     single_scale = MscEvalV0((1., ), False)
-    mIOU, ious = single_scale(net, dl, cfg.categories)
+    mIOU, ious_ss = single_scale(net, dl, cfg.categories)
     heads.append('single-scale')
     mious.append(mIOU)
     logger.info('single-scale mIOU is: %s\n', mIOU)
     for i in range(cfg.categories):
-        logger.info('Class'+str(i) +' SS IoU is: %s\n', str(ious[i]))
+        logger.info('Class'+str(i) +' SS IoU is: %s\n', str(ious_ss[i]))
 
     single_crop = MscEvalCrop(cropsize=(480,640), cropstride=2./3, flip=False, scales=(0.5, 0.75, 1.0, 1.5, 1.75), lb_ignore=255)
-    mIOU, ious = single_crop(net, dl, cfg.categories)
+    mIOU, ious_mssc = single_crop(net, dl, cfg.categories)
     heads.append('multi-scale_single_crop')
     mious.append(mIOU)
     logger.info('multi-scale_single_crop mIOU is :%s\n', mIOU)
     for i in range(cfg.categories):
-        logger.info('Class'+str(i) +' MSSC IoU is: %s\n', str(ious[i]))
+        logger.info('Class'+str(i) +' MSSC IoU is: %s\n', str(ious_mssc[i]))
 
     ms_flip = MscEvalV0((1.0, ), True)#############
-    mIOU, ious = ms_flip(net, dl, cfg.categories)
+    mIOU, ious_mcf = ms_flip(net, dl, cfg.categories)
     heads.append('multi_crop_flip')
     mious.append(mIOU)
     logger.info('multi-crop_flip mIOU is: %s\n', mIOU)
     for i in range(cfg.categories):
-        logger.info('Class'+str(i) +' MCF IoU is: %s\n', str(ious[i]))
+        logger.info('Class'+str(i) +' MCF IoU is: %s\n', str(ious_mcf[i]))
 
     msc_flip_crop = MscEvalCrop(cropsize=(480,640), cropstride=2./3, flip=True, scales=(0.5, 0.75, 1.0, 1.5, 1.75), lb_ignore=255)
-    mIOU, ious = msc_flip_crop(net, dl, cfg.categories)
+    mIOU, ious_msfc = msc_flip_crop(net, dl, cfg.categories)
     heads.append('multi-scale_flip_crop')
     mious.append(mIOU)
     logger.info('multi-scale_flip_crop mIOU is: %s\n', mIOU)
     for i in range(cfg.categories):
-        logger.info('Class'+str(i) +' MSFC IoU is: %s\n', str(ious[i]))
-    return heads, mious
+        logger.info('Class'+str(i) +' MSFC IoU is: %s\n', str(ious_msfc[i]))
+    return heads, mious, ious_ss, ious_mssc, ious_mcf, ious_msfc
 
 
 def evaluate(cfg, weight_pth):
@@ -215,8 +215,11 @@ def evaluate(cfg, weight_pth):
         local_rank = dist.get_rank()
         net = nn.parallel.DistributedDataParallel(net, device_ids=[local_rank, ], output_device=local_rank)
 
-    heads, mious = eval_model(net, 2, cfg.im_root, cfg.val_im_anns, cfg)
-    logger.info(tabulate([mious, ], headers=heads, tablefmt='orgtbl'))
+    heads_eval, mious_eval, ious_ss_eval, ious_mssc_eval, ious_mcf_eval, ious_msfc_eval = eval_model(net, 2, cfg.im_root, cfg.val_im_anns, cfg)
+    heads_test, mious_test, ious_ss_test, ious_mssc_test, ious_mcf_test, ious_msfc_test = eval_model(net, 2, cfg.im_root, cfg.test_im_anns, cfg)
+    logger.info(tabulate([mious_eval, ], headers=heads_eval, tablefmt='orgtbl'))
+    logger.info(tabulate([mious_test, ], headers=heads_test, tablefmt='orgtbl'))
+    return ious_ss_eval, ious_mssc_eval, ious_mcf_eval, ious_msfc_eval, ious_ss_test, ious_mssc_test, ious_mcf_test, ious_msfc_test
 
 
 def parse_args():
@@ -240,7 +243,7 @@ def main():
 
     if not osp.exists(cfg.respth): os.makedirs(cfg.respth)
     setup_logger('{}-eval'.format(cfg.model_type), cfg.respth)
-    evaluate(cfg, args.weight_path)
+    ious_ss, ious_mssc, ious_mcf, ious_msfc = evaluate(cfg, args.weight_path)
 
 
 if __name__ == "__main__":

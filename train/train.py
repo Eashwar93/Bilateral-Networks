@@ -25,6 +25,7 @@ from ohem_ce_loss import OhemCELoss
 from lr_scheduler import WarmupPolyLrScheduler
 from utils.meters import TimeMeter, AvgMeter
 from utils.logger import setup_logger, print_log_msg, print_log_msg_withoutaux
+from torch.utils.tensorboard import SummaryWriter
 
 # apex
 has_apex = True
@@ -44,19 +45,17 @@ torch.backends.cudnn.deterministic = True
 #  torch.multiprocessing.set_sharing_strategy('file_system')
 
 
-
-
 def parse_args():
     parse = argparse.ArgumentParser()
     parse.add_argument('--local_rank', dest='local_rank', type=int, default=-1,)
     parse.add_argument('--port', dest='port', type=int, default=44554,)
-    parse.add_argument('--model', dest='model', type=str, default='bisenet_v1_g6')
+    parse.add_argument('--model', dest='model', type=str, default='bisenetv1')
     parse.add_argument('--finetune-from', type=str, default=None,)
     return parse.parse_args()
 
 args = parse_args()
 cfg = cfg_factory[args.model]
-
+writer = SummaryWriter(log_dir=cfg.logpath)
 
 def set_model():
     net = model_factory[cfg.model_type](n_classes=cfg.categories, aux_output=cfg.aux_output, export=False)
@@ -138,7 +137,7 @@ def train():
     is_dist = dist.is_initialized()
 
     ## dataset
-    dl = get_data_loader(
+    dl_train = get_data_loader(
             cfg.im_root, cfg.train_im_anns,
             cfg.ims_per_gpu, cfg.scales, cfg.cropsize,
             cfg.max_iter, mode='train', distributed=is_dist, n_cats=cfg.categories)
@@ -171,7 +170,8 @@ def train():
         warmup_ratio=0.1, warmup='exp', last_epoch=-1,)
 
     ## train loop
-    for it, (im, lb) in enumerate(dl):
+    iteration = 0
+    for it, (im, lb) in enumerate(dl_train):
         im = im.cuda()
         lb = lb.cuda()
 
@@ -196,16 +196,21 @@ def train():
         torch.cuda.synchronize()
         lr_schdr.step()
 
+        writer.add_scalar("loss", loss_pre, it)
+
         time_meter.update()
         loss_meter.update(loss.item())
+        iteration = it
         if cfg.aux_output:
             loss_pre_meter.update(loss_pre.item())
             _ = [mter.update(lss.item()) for mter, lss in zip(loss_aux_meters, loss_aux)]
+
 
         ## print training log message
         if (it + 1) % 100 == 0:
             lr = lr_schdr.get_lr()
             lr = sum(lr) / len(lr)
+            writer.add_scalar("learning_rate", lr, it)
             if cfg.aux_output:
                 print_log_msg(
                     it, cfg.max_iter, lr, time_meter, loss_meter,
@@ -214,17 +219,35 @@ def train():
                 print_log_msg_withoutaux(
                     it, cfg.max_iter, lr, time_meter, loss_meter)
 
-    ## dump the final model and evaluate the result
-    save_pth = osp.join(cfg.respth, cfg.save_name)
-    logger.info('\nsave models to {}'.format(save_pth))
-    state = net.module.state_dict()
-    if dist.get_rank() == 0: torch.save(state, save_pth)
+        ## Save model every 1000 iterations
+        if (it + 1) % 1000 == 0:
+            save_pth = osp.join(cfg.respth, cfg.save_name)
+            logger.info('\nsave models to {}'.format(save_pth+str(it+1)))
+            state = net.module.state_dict()
+            if dist.get_rank() == 0: torch.save(state, save_pth+str(it+1))
+            writer.add_scalar("train_loss_1000", loss_pre, it)
 
-    logger.info('\nevaluating the final model')
-    torch.cuda.empty_cache()
-    evaluate(cfg, save_pth)
-    logger.info("\nTrainer settings: ")
+    count = (iteration+1)//1000
+    logger.info('\nevaluating the models')
+    classes = ["Background", "Monorail", "Person", "Forklift"]
 
+    for i in range(count):
+        save_pth = osp.join(cfg.respth, cfg.save_name)
+        iteration = (i + 1) * 1000
+        logger.info('\n Iteration number:'+str(iteration))
+        torch.cuda.empty_cache()
+        ious_ss_eval, ious_mssc_eval, ious_mcf_eval, ious_msfc_eval, ious_ss_test, ious_mssc_test, ious_mcf_test, ious_msfc_test = evaluate(cfg, save_pth+str(iteration))
+
+
+        for j in range(cfg.categories):
+            writer.add_scalar("ss_class_iou_eval "+ classes[j], ious_ss_eval.tolist()[j], iteration)
+            writer.add_scalar("mssc_class_iou_eval "+ classes[j], ious_mssc_eval.tolist()[j], iteration)
+            writer.add_scalar("mcf_class_iou_eval " + classes[j], ious_mcf_eval.tolist()[j], iteration)
+            writer.add_scalar("msfc_class_iou_eval " + classes[j], ious_msfc_eval.tolist()[j], iteration)
+            writer.add_scalar("ss_class_iou_test " + classes[j], ious_ss_test.tolist()[j], iteration)
+            writer.add_scalar("mssc_class_iou_test " + classes[j], ious_mssc_test.tolist()[j], iteration)
+            writer.add_scalar("mcf_class_iou_test " + classes[j], ious_mcf_test.tolist()[j], iteration)
+            writer.add_scalar("msfc_class_iou_test " + classes[j], ious_msfc_test.tolist()[j], iteration)
 
     return
 
@@ -240,6 +263,8 @@ def main():
     if not osp.exists(cfg.respth): os.makedirs(cfg.respth)
     setup_logger('{}-train'.format(cfg.model_type), cfg.respth)
     train()
+    writer.flush()
+    writer.close()
 
 
 if __name__ == "__main__":

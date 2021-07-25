@@ -19,11 +19,13 @@ from dataload.base_dataset import BaseDataset, TransformationTrain, Transformati
 labels_info = [
     {"hasInstances": False, "category": "void", "catid": 0, "name": "background", "ignoreInEval": True, "id": 0, "color": [0, 0, 0], "trainId": 0},
     {"hasInstances": True, "category": "void", "catid": 1, "name": "monorail", "ignoreInEval": False, "id": 1, "color": [128, 64,128], "trainId": 1},
+    {"hasInstances": True, "category": "void", "catid": 2, "name": "person", "ignoreInEval": False, "id": 2, "color": [128, 64,128], "trainId": 2},
+    {"hasInstances": True, "category": "void", "catid": 3, "name": "forklift", "ignoreInEval": False, "id": 3, "color": [128, 64,128], "trainId": 3},
 ]
 
 
 class Rexroth(BaseDataset):
-    def __init__(self, dataroot, annpath, trans_func=None, mode='train', n_cats=3):
+    def __init__(self, dataroot, annpath, trans_func=None, mode='train', n_cats=4):
         super(Rexroth, self).__init__(dataroot, annpath, trans_func, mode)
         self.n_cats = n_cats
         self.lb_ignore = 255
