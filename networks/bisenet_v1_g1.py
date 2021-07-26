@@ -183,10 +183,10 @@ class SpatialPath(nn.Module):
         super(SpatialPath, self).__init__()
         self.conv1 = ConvBNRelu(in_chan=3, out_chan=64, ks=7, stride=2, padding=3)
         self.conv2 = GConvBNRelu(in_chan=64, out_chan=128, ks=3, stride=2, padding=1)
-        self.gather1 = ConvBNRelu(in_chan=128,out_chan=64,ks=1,stride=1,padding=0)
-        self.conv3 = GConvBNRelu(in_chan=64, out_chan=128, ks=3, stride=2, padding=1)
-        self.gather2 = ConvBNRelu(in_chan=128, out_chan=64, ks=1, stride=1, padding=0)
-        self.conv_out = ConvBNRelu(in_chan=64, out_chan=128, ks=1, stride=1, padding=0)
+        self.gather1 = ConvBNRelu(in_chan=128,out_chan=128,ks=1,stride=1,padding=0)
+        self.conv3 = GConvBNRelu(in_chan=128, out_chan=128, ks=3, stride=2, padding=1)
+        self.gather2 = ConvBNRelu(in_chan=128, out_chan=128, ks=1, stride=1, padding=0)
+        self.conv_out = ConvBNRelu(in_chan=128, out_chan=128, ks=1, stride=1, padding=0)
         self.init_weight()
 
     def forward(self, x):
