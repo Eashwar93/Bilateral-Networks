@@ -225,9 +225,9 @@ def evaluate(cfg, weight_pth):
 def parse_args():
     parse = argparse.ArgumentParser()
     parse.add_argument('--local_rank', dest='local_rank', type=int, default=-1, )
-    parse.add_argument('--weight-path', dest='weight_path', type=str, default='./res/bisenet_v1_g6_fulldata.pth')
+    parse.add_argument('--weight-path', dest='weight_path', type=str, default='./res/fanet18_v4/fanet18_v4.pth12000')
     parse.add_argument('--port', dest='port', type=int, default=44553, )
-    parse.add_argument('--model', dest='model', type=str, default='bisenet_v1_g6')
+    parse.add_argument('--model', dest='model', type=str, default='fanet18_v4')
     return parse.parse_args()
 
 
@@ -243,7 +243,7 @@ def main():
 
     if not osp.exists(cfg.respth): os.makedirs(cfg.respth)
     setup_logger('{}-eval'.format(cfg.model_type), cfg.respth)
-    ious_ss, ious_mssc, ious_mcf, ious_msfc = evaluate(cfg, args.weight_path)
+    iious_ss_eval, ious_mssc_eval, ious_mcf_eval, ious_msfc_eval, ious_ss_test, ious_mssc_test, ious_mcf_test, ious_msfc_test = evaluate(cfg, args.weight_path)
 
 
 if __name__ == "__main__":
