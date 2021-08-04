@@ -15,9 +15,9 @@ torch.set_grad_enabled(False)
 np.random.seed(123)
 
 parse = argparse.ArgumentParser()
-parse.add_argument('--model', dest='model', type=str, default='bisenet_v1_g1',)
-parse.add_argument('--weight-path', dest='weight_path', type=str, default='./res/bisenet_v1_g1_16_fulldata.pth',)
-parse.add_argument('--img-path', dest='img_path', type=str, default='./test.jpg',)
+parse.add_argument('--model', dest='model', type=str, default='fanet18_v4_se2',)
+parse.add_argument('--weight-path', dest='weight_path', type=str, default='./res/fanet18_v4_se2/fanet18_v4_se2.pth12000',)
+parse.add_argument('--img-path', dest='img_path', type=str, default='./2630.png',)
 args = parse.parse_args()
 cfg = cfg_factory[args.model]
 
@@ -39,4 +39,4 @@ out = net(im)
 print(out.shape)
 out = out.argmax(dim=1).squeeze().detach().cpu().numpy()
 pred = palette[out]
-cv2.imwrite('./bisenet_v1_g1_test.png', pred)
+cv2.imwrite('./res/fanet18_v4_se2/fanet18_v4_se2_test.png', pred)
