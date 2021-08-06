@@ -85,7 +85,7 @@ python util/export_onnx.py --model <model of choice> --weight-path <path/to/core
 
 
 ### Recommendations:
-Based on the custom dataset I conducted my experiments, I would recommend using _bisnet_v1_g6_ which is _20%_ faster than thr author's version without significant change in quality of performance.
+Based on the custom dataset I conducted my experiments, I would recommend using _bisnet_v1_g6_ which is _20%_ faster than the author's version without significant change in quality of performance.
 
 
 ### Further Work:
