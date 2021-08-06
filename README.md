@@ -84,5 +84,8 @@ python util/export_onnx.py --model <model of choice> --weight-path <path/to/core
 * Hu, Jie & Shen, Li & Sun, Gang & Albanie, Samuel. (2017). Squeeze-and-Excitation Networks. 
 
 ### Further Work:
-Models _bisenetv1_ and _FANETv1_ are authors version of the models from the respective papers. I will publish the details of the modifications and results which were part of my research soon
+Models _bisenetv1_ and _fanetv1_ are authors version of the models from the respective papers. I will publish the details of the modifications and results which were part of my research soon
+
+### Recommendations:
+Based on the custom dataset I conducted my experiments, I would recommend using _bisnet_v1_g6_ which is _20%_ faster than thr author's version without significant change in quality of performance.
 
