@@ -89,5 +89,5 @@ Based on the custom dataset I conducted my experiments, I would recommend using 
 
 
 ### Further Work:
-* Models _bisenetv1_ and _fanetv1_ are authors version of the models from the respective papers. I will publish the details of the modifications and results which were part of my research soon.
-* I will link this repository with deployment in TensoRT and OpenVino possibly with a ROS2 wrapper
+* Models _bisenetv1_ and _fanetv1_ are author's version of the models from the respective papers. I will publish the details of the modifications and results which were part of my research soon.
+* I will link this repository with deployment in TensorRT and OpenVino possibly with a ROS2 wrapper
