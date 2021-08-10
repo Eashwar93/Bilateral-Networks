@@ -23,6 +23,9 @@ pip install opencv-contrib-python
 pip install prettytable
 pip install ptflops
 pip install tensorboard
+pip install tabulate
+pip install pytorch-model-summary
+pip install torchviz
 ```
 
 ### Dataset preparation:
