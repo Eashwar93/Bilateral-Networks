@@ -99,4 +99,4 @@ To test the deployment in TensorRT and OpenVino with the ROS2 Framework use the 
 
 ### Further Work:
 * Models _bisenetv1_ and _fanetv1_ are author's version of the models from the respective papers. I will publish the details of the modifications and results which were part of my research soon.
-* I will link this repository with deployment in TensorRT and OpenVino possibly with a ROS2 wrapper
+
