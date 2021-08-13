@@ -90,6 +90,12 @@ python util/export_onnx.py --model <model of choice> --weight-path <path/to/core
 ### Recommendations:
 Based on the custom dataset I conducted my experiments, I would recommend using _bisnet_v1_g6_ which is _20%_ faster than the author's version without significant change in quality of performance.
 
+### Deployment Pipeline:
+To deploy the networks trained and evaluated here in TensorRT and OpenVino use the repository [here](https://github.com/Eashwar93/SemanticSegmentation-Deployments)
+
+### ROS2 Wrapper:
+To test the deployment in TensorRT and OpenVino with the ROS2 Framework use the repository [here](https://github.com/Eashwar93/SemanticSegmentation-Deployments/tree/main/ros2_wrapper)
+
 
 ### Further Work:
 * Models _bisenetv1_ and _fanetv1_ are author's version of the models from the respective papers. I will publish the details of the modifications and results which were part of my research soon.
